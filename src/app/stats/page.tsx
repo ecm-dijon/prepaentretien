@@ -177,6 +177,7 @@ export default async function StatsPage() {
               </div>
             </section>
 
+            {sessions.length > 0 && (
             <Card className="shadow-soft">
               <CardHeader>
                 <CardTitle className="text-base">Sessions individuelles</CardTitle>
@@ -186,12 +187,6 @@ export default async function StatsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                {sessions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Aucune session enregistrée pour le moment (le suivi individuel démarre avec cette
-                    version).
-                  </p>
-                ) : (
                   <table className="w-full min-w-[720px] text-sm">
                     <thead className="text-left text-xs text-muted-foreground">
                       <tr>
@@ -226,9 +221,9 @@ export default async function StatsPage() {
                       })}
                     </tbody>
                   </table>
-                )}
               </CardContent>
             </Card>
+            )}
 
             <Card className="shadow-soft">
               <CardHeader>

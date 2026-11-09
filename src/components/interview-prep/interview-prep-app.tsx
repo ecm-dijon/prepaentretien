@@ -15,6 +15,7 @@ import {
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
 import { openingMessage } from "@/lib/opening-message";
 
+import { AppHeader } from "./app-header";
 import { InterviewPrepChat } from "./interview-prep-chat";
 import { SetupForm } from "./setup-form";
 import { SummaryView } from "./summary-view";
@@ -130,36 +131,64 @@ export function InterviewPrepApp() {
   }
 
   if (phase === "setup") {
-    return <SetupForm value={student} onChange={setStudent} onStart={handleStart} />;
+    return (
+      <PageShell>
+        <div className="mb-8 space-y-2 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight">Préparez votre entretien d&apos;alternance</h1>
+          <p className="text-muted-foreground">
+            Le coach IA joue le rôle du recruteur, vous donne un retour après chaque réponse et vous
+            remet un compte rendu à télécharger à la fin.
+          </p>
+        </div>
+        <SetupForm value={student} onChange={setStudent} onStart={handleStart} />
+      </PageShell>
+    );
   }
 
   if (phase === "summary") {
     return (
-      <SummaryView
-        summary={summary}
-        messages={messages}
-        studentName={context.firstName}
-        retrying={summarizing}
-        onRetrySummary={summarize}
-        onDownloaded={() => {
-          if (!downloaded) void recordPdfDownloadedAction(sessionId).catch(() => {});
-          setDownloaded(true);
-        }}
-        onNewSession={handleNewSession}
-      />
+      <PageShell>
+        <SummaryView
+          summary={summary}
+          messages={messages}
+          studentName={context.firstName}
+          retrying={summarizing}
+          onRetrySummary={summarize}
+          onDownloaded={() => {
+            if (!downloaded) void recordPdfDownloadedAction(sessionId).catch(() => {});
+            setDownloaded(true);
+          }}
+          onNewSession={handleNewSession}
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <InterviewPrepChat
-        messages={messages}
-        setMessages={setMessages}
-        student={context}
-        sessionId={sessionId}
-        ending={summarizing}
-        onEnd={summarize}
-      />
+    <InterviewPrepChat
+      messages={messages}
+      setMessages={setMessages}
+      student={context}
+      sessionId={sessionId}
+      ending={summarizing}
+      onEnd={summarize}
+    />
+  );
+}
+
+// Étapes « départ » et « compte rendu » : page qui défile normalement, même
+// barre du haut que le chat, contenu dans une colonne centrée.
+function PageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-svh flex-col">
+      <AppHeader />
+      <main className="relative flex-1 px-4 py-10 sm:px-6">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(ellipse_at_top,var(--brand-50),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top,var(--brand-800),transparent_65%)] dark:opacity-30"
+          aria-hidden
+        />
+        <div className="mx-auto w-full max-w-3xl">{children}</div>
+      </main>
     </div>
   );
 }

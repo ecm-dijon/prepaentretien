@@ -81,7 +81,7 @@ export function SummaryView({
   }
 
   return (
-    <Card className="mx-auto max-w-3xl shadow-soft">
+    <Card className="shadow-soft">
       <CardHeader>
         <CardTitle>Compte rendu de votre session</CardTitle>
         <CardDescription>

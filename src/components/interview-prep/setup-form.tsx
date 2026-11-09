@@ -30,7 +30,7 @@ export function SetupForm({
   const set = (field: keyof StudentForm) => (v: string) => onChange({ ...value, [field]: v });
 
   return (
-    <Card className="mx-auto max-w-3xl shadow-soft">
+    <Card className="shadow-soft">
       <CardHeader>
         <CardTitle>Avant de commencer</CardTitle>
         <CardDescription>
