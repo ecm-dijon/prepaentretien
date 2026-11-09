@@ -138,7 +138,7 @@ export default async function StatsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Statistiques d&apos;usage</h1>
           <p className="text-muted-foreground">
             Une <strong>simulation</strong> = une fois où un·e étudiant·e clique sur « Démarrer la
-            simulation ». Tout est anonyme : ni prénom, ni contenu des échanges, ni poste visé.
+            simulation ».
           </p>
         </div>
 
@@ -181,9 +181,8 @@ export default async function StatsPage() {
               <CardHeader>
                 <CardTitle className="text-base">Sessions individuelles</CardTitle>
                 <CardDescription>
-                  Une ligne par simulation (les {SESSIONS_SHOWN} plus récentes, conservées 90 jours),
-                  identifiée seulement par sa date — impossible de savoir qui l&apos;a faite. Une
-                  simulation non terminée est « abandonnée » après 30 min sans activité.
+                  Une ligne par simulation (les {SESSIONS_SHOWN} plus récentes, conservées 90 jours).
+                  Une simulation non terminée est « abandonnée » après 30 min sans activité.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
