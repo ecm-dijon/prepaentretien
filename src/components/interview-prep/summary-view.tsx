@@ -74,7 +74,7 @@ export function SummaryView({
       onDownloaded();
     } catch (err) {
       console.error("[summary-pdf] generation failed:", err);
-      toast.error("Impossible de générer le PDF. Réessaie.");
+      toast.error("Impossible de générer le PDF. Réessayez.");
     } finally {
       setDownloading(false);
     }
@@ -83,10 +83,10 @@ export function SummaryView({
   return (
     <Card className="mx-auto max-w-3xl shadow-soft">
       <CardHeader>
-        <CardTitle>Compte rendu de ta session</CardTitle>
+        <CardTitle>Compte rendu de votre session</CardTitle>
         <CardDescription>
-          Télécharge-le maintenant : rien n&apos;est conservé, il disparaîtra dès que tu quitteras la
-          page ou relanceras une session.
+          Téléchargez-le maintenant : rien n&apos;est conservé, il disparaîtra dès que vous quitterez la
+          page ou relancerez une session.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -113,7 +113,7 @@ export function SummaryView({
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Le compte rendu n&apos;a pas pu être généré. Tu peux réessayer, ou télécharger la
+                  Le compte rendu n&apos;a pas pu être généré. Vous pouvez réessayer, ou télécharger la
                   transcription complète.
                 </p>
                 <Button type="button" variant="outline" size="sm" disabled={retrying} onClick={onRetrySummary}>

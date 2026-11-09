@@ -30,12 +30,12 @@ export default function InterviewPrepPage() {
           <div className="mx-auto max-w-3xl">
             <h1 className="text-2xl font-semibold tracking-tight">Prépa entretien</h1>
             <p className="text-muted-foreground">
-              Simule un entretien avec le coach IA : décris le poste visé, réponds à ses questions, et
-              reçois des retours pour t&apos;améliorer. À la fin, télécharge ton compte rendu en PDF.
+              Simulez un entretien avec le coach IA : décrivez le poste visé, répondez à ses questions et
+              recevez des retours pour vous améliorer. À la fin, téléchargez votre compte rendu en PDF.
             </p>
             <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-              Aucun compte, aucun stockage : la session est effacée dès que tu quittes la page.
+              Aucun compte, aucun stockage : la session est effacée dès que vous quittez la page.
             </p>
           </div>
           <InterviewPrepApp />

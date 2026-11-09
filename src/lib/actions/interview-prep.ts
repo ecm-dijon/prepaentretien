@@ -52,7 +52,7 @@ export async function sendInterviewPrepMessageAction(
   const parsedHistory = historySchema.safeParse(previousMessages);
   const parsedStudent = profileSchema.safeParse(student);
   if (!parsedHistory.success || !parsedStudent.success) {
-    return { success: false, error: "Session invalide. Recharge la page pour recommencer." };
+    return { success: false, error: "Session invalide. Rechargez la page pour recommencer." };
   }
 
   // Cost/abuse guard (repris de la plateforme) : borne la durée d'une
@@ -60,7 +60,7 @@ export async function sendInterviewPrepMessageAction(
   if (parsedHistory.data.length >= MAX_MESSAGES) {
     return {
       success: false,
-      error: "Cette session est bien fournie ! Termine-la et relance-en une nouvelle si besoin.",
+      error: "Cette session est bien fournie ! Terminez-la et relancez-en une nouvelle si besoin.",
     };
   }
 
@@ -84,7 +84,7 @@ export async function sendInterviewPrepMessageAction(
     });
   } catch (err) {
     console.error("[interview-prep] getInterviewPrepReply failed:", err instanceof Error ? err.message : err);
-    return { success: false, error: "Le coach n'a pas pu répondre pour le moment. Réessaie." };
+    return { success: false, error: "Le coach n'a pas pu répondre pour le moment. Réessayez." };
   }
 
   const replies: string[] = [];
@@ -113,5 +113,5 @@ export async function summarizeInterviewPrepAction(messages: ChatTurn[]): Promis
       err instanceof Error ? err.message : err
     );
   }
-  return { success: false, error: "Le compte rendu n'a pas pu être généré. Réessaie." };
+  return { success: false, error: "Le compte rendu n'a pas pu être généré. Réessayez." };
 }

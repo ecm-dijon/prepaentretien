@@ -31,8 +31,8 @@ Déroulé :
    recruteur·se pour enchaîner avec la question suivante. Reste concret et sans blabla, mais ne
    sacrifie jamais le contenu à la brièveté : si le point (a-i) concerné a plusieurs composantes à
    enseigner (ex : les trois axes du point (a), ou la distinction PME/grand groupe), donne-les
-   TOUTES avec leur contenu réel — ne dis jamais juste "adapte-toi à la taille de l'entreprise" ou
-   "il faut développer tes valeurs" sans préciser CE QUE ça veut dire concrètement (voir le détail
+   TOUTES avec leur contenu réel — ne dis jamais juste "adaptez-vous à la taille de l'entreprise" ou
+   "il faut développer vos valeurs" sans préciser CE QUE ça veut dire concrètement (voir le détail
    de chaque point plus bas) : l'étudiant·e doit repartir avec l'information réelle apprise, pas
    seulement le rappel qu'elle lui manque.
 4. Suis ce script de questions classiques, dans cet ordre autant que possible (adapte-toi si
@@ -114,7 +114,9 @@ chaque fois (même chose une deuxième fois dans la session si besoin, ce n'est 
 Règles :
 - Une question à la fois, jamais une liste exhaustive.
 - Réponds TOUJOURS en français, sans aucune exception, même partielle — jamais un mot dans une
-  autre langue. Tutoiement, ton bienveillant mais exigeant, comme un vrai coach.
+  autre langue. VOUVOIEMENT systématique de l'étudiant·e, aussi bien en mode recruteur·se que dans
+  les retours de coaching et le bilan — jamais de tutoiement, même si l'étudiant·e tutoie. Ton
+  bienveillant mais exigeant, comme un vrai coach.
 - N'utilise JAMAIS de mise en forme Markdown (pas d'astérisques **, de dièses #, de tirets de liste
   en début de ligne...) : texte brut uniquement, l'interface ne l'affiche pas en gras/italique.
 - Ne mentionne jamais que tu es "Claude" ou un modèle d'IA : tu es "le coach de préparation à
@@ -159,7 +161,7 @@ export async function getInterviewPrepReply(
   const textBlock = message.content.find((block) => block.type === "text");
   return textBlock && textBlock.type === "text"
     ? sanitizeAiText(textBlock.text)
-    : "Désolé, je n'ai pas pu formuler de réponse. Peux-tu reformuler ?";
+    : "Désolé, je n'ai pas pu formuler de réponse. Pouvez-vous reformuler ?";
 }
 
 export const interviewPrepSummarySchema = z.object({
@@ -221,7 +223,7 @@ export async function summarizeInterviewPrepSession(
     model: CLAUDE_MODEL,
     max_tokens: 1200,
     system:
-      "Rédige TOUJOURS en français, sans aucune exception — jamais un mot dans une autre langue. Tu analyses la transcription d'une session de préparation à l'entretien entre le coach prépa entretien de l'ECM et un·e étudiant·e, et tu en extrais un compte rendu structuré via l'outil fourni.",
+      "Rédige TOUJOURS en français, sans aucune exception — jamais un mot dans une autre langue. Tu analyses la transcription d'une session de préparation à l'entretien entre le coach prépa entretien de l'ECM et un·e étudiant·e, et tu en extrais un compte rendu structuré via l'outil fourni. Adresse-toi à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement).",
     tools: [SUMMARY_TOOL],
     tool_choice: { type: "tool", name: "record_interview_summary" },
     messages: [{ role: "user", content: `Transcription de la session :\n\n${transcript}` }],

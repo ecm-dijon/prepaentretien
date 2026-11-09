@@ -103,7 +103,7 @@ export function InterviewPrepChat({
                   </div>
                   {showNoteReminder && (
                     <p className="mt-1 max-w-[85%] text-xs font-medium text-destructive">
-                      ⚠️ Pense à prendre des notes !
+                      ⚠️ Pensez à prendre des notes !
                     </p>
                   )}
                 </div>
@@ -130,7 +130,7 @@ export function InterviewPrepChat({
                 handleSend();
               }
             }}
-            placeholder="Écris ta réponse..."
+            placeholder="Écrivez votre réponse..."
             rows={2}
             disabled={sending || ending}
             className="flex-1"
@@ -144,7 +144,7 @@ export function InterviewPrepChat({
       <div className="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           {userTurns === 0
-            ? "Décris le poste visé pour démarrer la simulation."
+            ? "Décrivez le poste visé pour démarrer la simulation."
             : `${userTurns} réponse${userTurns > 1 ? "s" : ""} dans cette session.`}
         </p>
         <Button

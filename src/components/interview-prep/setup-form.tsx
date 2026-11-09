@@ -34,7 +34,7 @@ export function SetupForm({
       <CardHeader>
         <CardTitle>Avant de commencer</CardTitle>
         <CardDescription>
-          Tout est facultatif, mais plus tu en dis, plus le coach personnalise ses questions (mises en
+          Tout est facultatif, mais plus vous en dites, plus le coach personnalise ses questions (mises en
           situation, « pourquoi vous ? »...).
         </CardDescription>
       </CardHeader>
@@ -68,7 +68,7 @@ export function SetupForm({
             <Field label="Diplôme préparé" htmlFor="degree">
               <Select value={value.degree || undefined} onValueChange={set("degree")}>
                 <SelectTrigger id="degree" className="w-full">
-                  <SelectValue placeholder="Choisis ton diplôme" />
+                  <SelectValue placeholder="Choisissez votre diplôme" />
                 </SelectTrigger>
                 <SelectContent>
                   {DEGREE_OPTIONS.map((degree) => (
@@ -82,7 +82,7 @@ export function SetupForm({
             <Field label="Année" htmlFor="currentYear">
               <Select value={value.currentYear || undefined} onValueChange={set("currentYear")}>
                 <SelectTrigger id="currentYear" className="w-full">
-                  <SelectValue placeholder="Choisis ton année" />
+                  <SelectValue placeholder="Choisissez votre année" />
                 </SelectTrigger>
                 <SelectContent>
                   {YEAR_LEVEL_OPTIONS.map((year) => (
@@ -116,7 +116,7 @@ export function SetupForm({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-              Rien n&apos;est enregistré : tout est effacé dès que tu quittes la page.
+              Rien n&apos;est enregistré : tout est effacé dès que vous quittez la page.
             </p>
             <Button type="submit">
               <Play className="size-4" /> Démarrer la simulation
