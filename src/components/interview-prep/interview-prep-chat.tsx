@@ -17,12 +17,14 @@ export function InterviewPrepChat({
   messages,
   setMessages,
   student,
+  sessionId,
   ending,
   onEnd,
 }: {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   student: StudentContext;
+  sessionId: string;
   ending: boolean;
   onEnd: () => void;
 }) {
@@ -45,7 +47,7 @@ export function InterviewPrepChat({
     setInput("");
 
     startSending(async () => {
-      const result = await sendInterviewPrepMessageAction(previous, content, student);
+      const result = await sendInterviewPrepMessageAction(previous, content, student, sessionId);
       if (result.success) {
         setMessages((prev) => [
           ...prev,

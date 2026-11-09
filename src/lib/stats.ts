@@ -80,3 +80,118 @@ export async function getDailyStats(days: number): Promise<DayStats[]> {
     return stats;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Sessions individuelles ANONYMES : une ligne par simulation, repérée par un
+// identifiant aléatoire généré dans le navigateur au démarrage (jamais lié à
+// une personne, ni stocké côté navigateur). On ne garde que des horodatages
+// et des compteurs — jamais le contenu, le prénom ou le poste visé.
+// Conservées 90 jours.
+// ---------------------------------------------------------------------------
+
+const SESSION_TTL_SEC = 90 * 24 * 3600;
+const SESSIONS_INDEX = "prepa:sessions";
+const sessionKey = (id: string) => `prepa:session:${id}`;
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidSessionId(id: unknown): id is string {
+  return typeof id === "string" && SESSION_ID_RE.test(id);
+}
+
+export type SessionRecord = {
+  id: string;
+  startedAt: number;
+  lastActivityAt: number;
+  completedAt: number | null;
+  answers: number;
+  profileFilled: boolean;
+  pdf: boolean;
+};
+
+async function safely(fn: (client: Redis) => Promise<unknown>) {
+  const client = getRedis();
+  if (!client) return;
+  try {
+    await fn(client);
+  } catch (err) {
+    console.error("[stats] session update failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+export async function recordSessionStart(id: string, profileFilled: boolean) {
+  if (!isValidSessionId(id)) return;
+  const now = Date.now();
+  await safely(async (client) => {
+    const key = sessionKey(id);
+    // hsetnx : un identifiant déjà connu ne peut pas être « redémarré ».
+    const created = await client.hsetnx(key, "started", now);
+    if (!created) return;
+    const p = client.pipeline();
+    p.hset(key, { last: now, answers: 0, profile: profileFilled ? 1 : 0, completed: 0, pdf: 0 });
+    p.expire(key, SESSION_TTL_SEC);
+    p.zadd(SESSIONS_INDEX, { score: now, member: id });
+    p.zremrangebyscore(SESSIONS_INDEX, 0, now - SESSION_TTL_SEC * 1000);
+    await p.exec();
+  });
+}
+
+// Mises à jour uniquement pour une session réellement démarrée.
+async function updateSession(id: string, fn: (p: ReturnType<Redis["pipeline"]>, key: string) => void) {
+  if (!isValidSessionId(id)) return;
+  await safely(async (client) => {
+    const key = sessionKey(id);
+    if (!(await client.hexists(key, "started"))) return;
+    const p = client.pipeline();
+    fn(p, key);
+    await p.exec();
+  });
+}
+
+export async function recordSessionAnswer(id: string) {
+  await updateSession(id, (p, key) => {
+    p.hincrby(key, "answers", 1);
+    p.hset(key, { last: Date.now() });
+  });
+}
+
+export async function recordSessionCompleted(id: string) {
+  const now = Date.now();
+  await updateSession(id, (p, key) => {
+    p.hsetnx(key, "completed_at", now);
+    p.hset(key, { completed: 1, last: now });
+  });
+}
+
+export async function recordSessionPdf(id: string) {
+  await updateSession(id, (p, key) => {
+    p.hset(key, { pdf: 1, last: Date.now() });
+  });
+}
+
+export async function getRecentSessions(limit: number): Promise<SessionRecord[]> {
+  const client = getRedis();
+  if (!client) return [];
+  const ids = (await client.zrange(SESSIONS_INDEX, 0, limit - 1, { rev: true })) as string[];
+  if (!ids.length) return [];
+  const p = client.pipeline();
+  for (const id of ids) p.hgetall(sessionKey(id));
+  const rows = (await p.exec()) as (Record<string, unknown> | null)[];
+
+  const sessions: SessionRecord[] = [];
+  ids.forEach((id, i) => {
+    const row = rows[i];
+    const startedAt = Number(row?.started);
+    if (!row || !startedAt) return; // expirée
+    const completedAt = Number(row.completed_at) || null;
+    sessions.push({
+      id,
+      startedAt,
+      lastActivityAt: Number(row.last) || startedAt,
+      completedAt,
+      answers: Number(row.answers) || 0,
+      profileFilled: Number(row.profile) === 1,
+      pdf: Number(row.pdf) === 1,
+    });
+  });
+  return sessions;
+}

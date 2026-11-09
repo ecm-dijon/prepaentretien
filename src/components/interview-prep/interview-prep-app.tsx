@@ -22,6 +22,16 @@ import { EMPTY_STUDENT, type Message, type StudentForm } from "./types";
 
 type Phase = "setup" | "chat" | "summary";
 
+// UUID v4 aléatoire (crypto.randomUUID n'existe pas sur certains navigateurs anciens).
+function randomId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 function toContext(form: StudentForm): StudentContext {
   const list = (value: string, separator: RegExp, max: number, maxLength: number) =>
     Array.from(
@@ -56,6 +66,9 @@ export function InterviewPrepApp() {
   // Statistiques anonymes : début de la simulation et « déjà comptée comme
   // terminée » (le compte rendu peut être régénéré sans recompter).
   const startedAtRef = useRef(0);
+  // Identifiant aléatoire de la simulation, uniquement pour les statistiques
+  // anonymes : nouveau à chaque simulation, jamais stocké dans le navigateur.
+  const [sessionId, setSessionId] = useState("");
   const completedRecordedRef = useRef(false);
 
   const hasUnsavedWork =
@@ -84,7 +97,9 @@ export function InterviewPrepApp() {
     const profileFilled = Boolean(
       ctx.headline || ctx.degree || ctx.currentYear || ctx.skills.length || ctx.experiences.length
     );
-    void recordSessionStartedAction(profileFilled).catch(() => {});
+    const id = randomId();
+    setSessionId(id);
+    void recordSessionStartedAction(id, profileFilled).catch(() => {});
   }
 
   function summarize() {
@@ -92,7 +107,7 @@ export function InterviewPrepApp() {
       completedRecordedRef.current = true;
       const answers = messages.filter((m) => m.role === "user").length;
       const durationSec = (Date.now() - startedAtRef.current) / 1000;
-      void recordSessionCompletedAction(answers, durationSec).catch(() => {});
+      void recordSessionCompletedAction(sessionId, answers, durationSec).catch(() => {});
     }
     startSummarizing(async () => {
       const result = await summarizeInterviewPrepAction(messages);
@@ -127,7 +142,7 @@ export function InterviewPrepApp() {
         retrying={summarizing}
         onRetrySummary={summarize}
         onDownloaded={() => {
-          if (!downloaded) void recordPdfDownloadedAction().catch(() => {});
+          if (!downloaded) void recordPdfDownloadedAction(sessionId).catch(() => {});
           setDownloaded(true);
         }}
         onNewSession={handleNewSession}
@@ -141,6 +156,7 @@ export function InterviewPrepApp() {
         messages={messages}
         setMessages={setMessages}
         student={context}
+        sessionId={sessionId}
         ending={summarizing}
         onEnd={summarize}
       />

@@ -9,7 +9,7 @@ import {
   type InterviewPrepSummary,
 } from "@/lib/ai/interview-prep";
 import { PRE_INTERVIEW_CHECKLIST_MESSAGE } from "@/lib/ai/interview-prep-checklist";
-import { incrementStats } from "@/lib/stats";
+import { incrementStats, recordSessionAnswer } from "@/lib/stats";
 
 // Aucune base, aucun compte : toute la session (profil + messages) vit
 // uniquement dans la mémoire de la page côté navigateur. Ces actions sont
@@ -44,7 +44,9 @@ export type SendMessageResult = { success: true; replies: string[] } | { success
 export async function sendInterviewPrepMessageAction(
   previousMessages: ChatTurn[],
   userMessage: string,
-  student: StudentContext
+  student: StudentContext,
+  // Identifiant aléatoire et anonyme de la simulation (statistiques uniquement).
+  sessionId?: string
 ): Promise<SendMessageResult> {
   const trimmed = userMessage.trim();
   if (!trimmed) return { success: false, error: "Message vide." };
@@ -90,7 +92,10 @@ export async function sendInterviewPrepMessageAction(
 
   // Compteurs anonymes (aucun contenu) : une réponse de plus, et une
   // simulation « engagée » dès la première réponse.
-  await incrementStats({ answers: 1, engaged: isFirstStudentReply ? 1 : 0 });
+  await Promise.all([
+    incrementStats({ answers: 1, engaged: isFirstStudentReply ? 1 : 0 }),
+    sessionId ? recordSessionAnswer(sessionId) : Promise.resolve(),
+  ]);
 
   const replies: string[] = [];
   if (isFirstStudentReply) replies.push(PRE_INTERVIEW_CHECKLIST_MESSAGE);

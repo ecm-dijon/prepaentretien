@@ -63,7 +63,11 @@ Seule variable nécessaire : `ANTHROPIC_API_KEY`.
 Pour savoir si l'outil est utilisé, la page `/stats` affiche sur 7, 30 et 90 jours : simulations
 démarrées, part avec profil renseigné, part où l'étudiant·e a répondu au moins une fois, réponses
 envoyées, simulations terminées, durée moyenne, nombre moyen de réponses et PDF téléchargés, avec
-le détail par jour. Seuls des compteurs par jour sont stockés (`prepa:stats:AAAA-MM-JJ` dans Redis).
+le détail par jour, ainsi que la liste des **sessions individuelles** (date et heure, durée, nombre
+de réponses, statut terminée / abandonnée / en cours, profil rempli, PDF téléchargé). Chaque
+session n'est repérée que par un identifiant aléatoire : ni prénom, ni contenu, ni poste visé.
+Stockage Redis : compteurs par jour (`prepa:stats:AAAA-MM-JJ`) et sessions (`prepa:session:<id>`,
+conservées 90 jours).
 
 Activation (facultative — sans ça l'application fonctionne pareil, sans statistiques) :
 
