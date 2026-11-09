@@ -9,6 +9,7 @@ import {
   type InterviewPrepSummary,
 } from "@/lib/ai/interview-prep";
 import { PRE_INTERVIEW_CHECKLIST_MESSAGE } from "@/lib/ai/interview-prep-checklist";
+import { incrementStats } from "@/lib/stats";
 
 // Aucune base, aucun compte : toute la session (profil + messages) vit
 // uniquement dans la mémoire de la page côté navigateur. Ces actions sont
@@ -86,6 +87,10 @@ export async function sendInterviewPrepMessageAction(
     console.error("[interview-prep] getInterviewPrepReply failed:", err instanceof Error ? err.message : err);
     return { success: false, error: "Le coach n'a pas pu répondre pour le moment. Réessayez." };
   }
+
+  // Compteurs anonymes (aucun contenu) : une réponse de plus, et une
+  // simulation « engagée » dès la première réponse.
+  await incrementStats({ answers: 1, engaged: isFirstStudentReply ? 1 : 0 });
 
   const replies: string[] = [];
   if (isFirstStudentReply) replies.push(PRE_INTERVIEW_CHECKLIST_MESSAGE);

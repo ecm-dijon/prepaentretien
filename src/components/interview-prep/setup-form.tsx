@@ -116,7 +116,7 @@ export function SetupForm({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-              Rien n&apos;est enregistré : tout est effacé dès que vous quittez la page.
+              Aucun contenu n&apos;est enregistré : tout est effacé dès que vous quittez la page.
             </p>
             <Button type="submit">
               <Play className="size-4" /> Démarrer la simulation

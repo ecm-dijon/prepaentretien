@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
   summarizeInterviewPrepAction,
   type StudentContext,
 } from "@/lib/actions/interview-prep";
+import {
+  recordPdfDownloadedAction,
+  recordSessionCompletedAction,
+  recordSessionStartedAction,
+} from "@/lib/actions/usage";
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
 import { openingMessage } from "@/lib/opening-message";
 
@@ -48,6 +53,10 @@ export function InterviewPrepApp() {
   const [summary, setSummary] = useState<InterviewPrepSummary | null>(null);
   const [downloaded, setDownloaded] = useState(false);
   const [summarizing, startSummarizing] = useTransition();
+  // Statistiques anonymes : début de la simulation et « déjà comptée comme
+  // terminée » (le compte rendu peut être régénéré sans recompter).
+  const startedAtRef = useRef(0);
+  const completedRecordedRef = useRef(false);
 
   const hasUnsavedWork =
     (phase === "chat" && messages.some((m) => m.role === "user")) || (phase === "summary" && !downloaded);
@@ -70,9 +79,21 @@ export function InterviewPrepApp() {
     setSummary(null);
     setDownloaded(false);
     setPhase("chat");
+    startedAtRef.current = Date.now();
+    completedRecordedRef.current = false;
+    const profileFilled = Boolean(
+      ctx.headline || ctx.degree || ctx.currentYear || ctx.skills.length || ctx.experiences.length
+    );
+    void recordSessionStartedAction(profileFilled).catch(() => {});
   }
 
   function summarize() {
+    if (!completedRecordedRef.current) {
+      completedRecordedRef.current = true;
+      const answers = messages.filter((m) => m.role === "user").length;
+      const durationSec = (Date.now() - startedAtRef.current) / 1000;
+      void recordSessionCompletedAction(answers, durationSec).catch(() => {});
+    }
     startSummarizing(async () => {
       const result = await summarizeInterviewPrepAction(messages);
       if (result.success) {
@@ -105,7 +126,10 @@ export function InterviewPrepApp() {
         studentName={context.firstName}
         retrying={summarizing}
         onRetrySummary={summarize}
-        onDownloaded={() => setDownloaded(true)}
+        onDownloaded={() => {
+          if (!downloaded) void recordPdfDownloadedAction().catch(() => {});
+          setDownloaded(true);
+        }}
         onNewSession={handleNewSession}
       />
     );

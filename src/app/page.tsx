@@ -35,7 +35,7 @@ export default function InterviewPrepPage() {
             </p>
             <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-              Aucun compte, aucun stockage : la session est effacée dès que vous quittez la page.
+              Aucun compte, aucun contenu conservé : la session est effacée dès que vous quittez la page. Seules des statistiques d&apos;usage anonymes sont comptées (nombre de simulations, durée).
             </p>
           </div>
           <InterviewPrepApp />

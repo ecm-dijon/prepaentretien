@@ -14,6 +14,8 @@ interface, même compte rendu** — mais **sans compte, sans base de données, s
   l'API Claude et ne garde rien — les logs serveur ne contiennent jamais le contenu des échanges.
 - Pas de `localStorage` ni de cookies applicatifs.
 - Le **compte rendu PDF est généré dans le navigateur** : il ne repasse par aucun serveur.
+- Seules des **statistiques d'usage anonymes** sont comptées (voir plus bas) : des compteurs
+  agrégés par jour, sans contenu, sans identifiant, sans adresse IP ni cookie.
 
 ## Fonctionnement
 
@@ -55,6 +57,22 @@ npm run dev
 ```
 
 Seule variable nécessaire : `ANTHROPIC_API_KEY`.
+
+## Statistiques d'usage anonymes (`/stats`)
+
+Pour savoir si l'outil est utilisé, la page `/stats` affiche sur 7, 30 et 90 jours : simulations
+démarrées, part avec profil renseigné, part où l'étudiant·e a répondu au moins une fois, réponses
+envoyées, simulations terminées, durée moyenne, nombre moyen de réponses et PDF téléchargés, avec
+le détail par jour. Seuls des compteurs par jour sont stockés (`prepa:stats:AAAA-MM-JJ` dans Redis).
+
+Activation (facultative — sans ça l'application fonctionne pareil, sans statistiques) :
+
+1. Vercel > projet > **Storage** > **Create Database** > **Upstash for Redis** (offre gratuite),
+   puis **Connect** au projet : les variables `KV_REST_API_URL` / `KV_REST_API_TOKEN` sont ajoutées
+   automatiquement.
+2. Settings > Environment Variables : ajouter `STATS_PASSWORD` (mot de passe de la page).
+3. Redéployer, puis ouvrir `https://<votre-domaine>/stats` (identifiant : n'importe lequel, mot de
+   passe : `STATS_PASSWORD`).
 
 ## Déploiement
 
