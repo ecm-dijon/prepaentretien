@@ -197,10 +197,36 @@ export async function getInterviewPrepReply(
     // la réflexion du modèle compte aussi dans cette limite — seuls les
     // tokens réellement générés sont facturés.
     max_tokens: 2000,
-    system: `${SYSTEM_PROMPT}\n\nInformations déjà connues sur l'étudiant·e : ${knownParts.join(
-      ". "
-    )}. Utilise-les pour personnaliser tes questions, mais ne les récite pas telles quelles.`,
+    // Mise en cache (réduit le coût, ne change rien au texte envoyé ni aux
+    // réponses) :
+    // 1. le prompt du coach, identique pour tous les étudiant·e·s, est un
+    //    bloc à part marqué en cache — partagé entre toutes les sessions ;
+    // 2. le cache_control de premier niveau met en cache toute la
+    //    conversation : au message suivant, l'historique déjà envoyé est relu
+    //    depuis le cache (≈ 10 % du prix) au lieu d'être refacturé.
+    // Le profil vient après le prompt fixe et ne change pas pendant une
+    // session ; l'historique ne fait que s'allonger : le préfixe reste stable.
+    cache_control: { type: "ephemeral" },
+    system: [
+      { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+      {
+        type: "text",
+        text: `\n\nInformations déjà connues sur l'étudiant·e : ${knownParts.join(
+          ". "
+        )}. Utilise-les pour personnaliser tes questions, mais ne les récite pas telles quelles.`,
+      },
+    ],
     messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+  });
+
+  // Uniquement des compteurs de tokens (aucun contenu) : permet de vérifier
+  // dans les logs Vercel que le cache fonctionne (cache_read > 0 dès le
+  // 2e message d'une session).
+  console.info("[interview-prep] usage", {
+    input: message.usage.input_tokens,
+    cache_read: message.usage.cache_read_input_tokens ?? 0,
+    cache_write: message.usage.cache_creation_input_tokens ?? 0,
+    output: message.usage.output_tokens,
   });
 
   const textBlock = message.content.find((block) => block.type === "text");
