@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Briefcase, Lightbulb, Loader2, Mic, MicOff, Square } from "lucide-react";
+import { ArrowUp, Briefcase, Lightbulb, Loader2, Mic, MicOff, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,12 @@ import { UsageNotice } from "./usage-notice";
 import { useDictation } from "./use-dictation";
 
 const MAX_INPUT_HEIGHT = 220;
+
+// Écran tactile (téléphone, tablette) : Entrée y fait un retour à la ligne
+// et on n'ouvre pas le clavier automatiquement.
+function isTouchDevice() {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+}
 
 // Interface pleine page façon messagerie : seule la liste des messages
 // défile (sur toute la largeur de la fenêtre), le contenu reste dans une
@@ -37,6 +43,7 @@ export function InterviewPrepChat({
 }) {
   const [input, setInput] = useState("");
   const [sending, startSending] = useTransition();
+  const [noticeVisible, setNoticeVisible] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const inputValueRef = useRef("");
@@ -61,7 +68,7 @@ export function InterviewPrepChat({
   }, [input]);
 
   useEffect(() => {
-    if (!sending) inputRef.current?.focus();
+    if (!sending && !isTouchDevice()) inputRef.current?.focus();
   }, [sending]);
 
   const userTurns = messages.filter((m) => m.role === "user").length;
@@ -69,7 +76,7 @@ export function InterviewPrepChat({
   function handleSend() {
     const content = input.trim();
     if (!content || sending || ending) return;
-    dictation.stop();
+    dictation.cancel();
 
     const previous = messages;
     setMessages([...previous, { role: "user", content }]);
@@ -93,7 +100,9 @@ export function InterviewPrepChat({
   }
 
   return (
-    <div className="flex h-svh flex-col">
+    // h-dvh : suit la hauteur réellement visible sur mobile (barre d'adresse,
+    // clavier ouvert) pour que la zone de saisie reste toujours accessible.
+    <div className="flex h-dvh flex-col">
       <AppHeader
         center={
           userTurns === 0
@@ -115,14 +124,24 @@ export function InterviewPrepChat({
         }
       />
 
-      <div className="shrink-0 border-b border-border/60 bg-background px-4 py-2 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl">
-          <UsageNotice compact />
+      {noticeVisible && (
+        <div className="shrink-0 border-b border-border/60 bg-background px-3 py-2 sm:px-6">
+          <div className="relative mx-auto w-full max-w-3xl pr-8">
+            <UsageNotice compact />
+            <button
+              type="button"
+              onClick={() => setNoticeVisible(false)}
+              aria-label="Masquer les informations"
+              className="absolute top-0 right-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl space-y-5 px-3 py-5 sm:space-y-6 sm:px-6 sm:py-8">
           {(() => {
             // Le rappel "prenez des notes" ne doit apparaître qu'après une
             // vraie réponse de coaching (donc une fois l'entretien
@@ -138,7 +157,7 @@ export function InterviewPrepChat({
               if (message.role === "user") {
                 return (
                   <div key={i} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-3xl bg-muted px-5 py-3 text-[15px] leading-relaxed whitespace-pre-line">
+                    <div className="max-w-[88%] rounded-3xl bg-muted px-4 py-2.5 sm:max-w-[85%] sm:px-5 sm:py-3 text-[15px] leading-relaxed break-words whitespace-pre-line">
                       {message.content}
                     </div>
                   </div>
@@ -154,24 +173,24 @@ export function InterviewPrepChat({
                 return (
                   <div key={i} className="space-y-4">
                     {parts.feedback && (
-                      <div className="flex gap-3 sm:gap-4">
+                      <div className="flex gap-2.5 sm:gap-4">
                         <CoachAvatar />
                         <div className="min-w-0 flex-1">
-                          <div className="rounded-2xl border border-border bg-accent/40 px-5 py-4">
+                          <div className="rounded-2xl border border-border bg-accent/40 px-4 py-3 sm:px-5 sm:py-4">
                             <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-primary uppercase">
                               <Lightbulb className="size-3.5" /> Retour du coach
                             </p>
-                            <div className="text-[15px] leading-relaxed whitespace-pre-line">{parts.feedback}</div>
+                            <div className="text-[15px] leading-relaxed break-words whitespace-pre-line">{parts.feedback}</div>
                           </div>
                           {noteReminder}
                         </div>
                       </div>
                     )}
-                    <div className="flex gap-3 sm:gap-4">
+                    <div className="flex gap-2.5 sm:gap-4">
                       <RecruiterAvatar />
                       <div className="min-w-0 flex-1 pt-1">
                         <p className="mb-1 text-xs font-semibold text-muted-foreground">Recruteur·se</p>
-                        <div className="text-[15px] leading-relaxed whitespace-pre-line">{parts.recruiter}</div>
+                        <div className="text-[15px] leading-relaxed break-words whitespace-pre-line">{parts.recruiter}</div>
                         {!parts.feedback && noteReminder}
                       </div>
                     </div>
@@ -180,13 +199,13 @@ export function InterviewPrepChat({
               }
 
               return (
-                <div key={i} className="flex gap-3 sm:gap-4">
+                <div key={i} className="flex gap-2.5 sm:gap-4">
                   <CoachAvatar />
                   <div className="min-w-0 flex-1 pt-1">
                     <div
                       className={cn(
-                        "text-[15px] leading-relaxed whitespace-pre-line",
-                        isChecklistMessage && "rounded-2xl border border-border bg-accent/40 px-5 py-4"
+                        "text-[15px] leading-relaxed break-words whitespace-pre-line",
+                        isChecklistMessage && "rounded-2xl border border-border bg-accent/40 px-4 py-3 sm:px-5 sm:py-4"
                       )}
                     >
                       {parts.text}
@@ -199,7 +218,7 @@ export function InterviewPrepChat({
           })()}
 
           {sending && (
-            <div className="flex gap-3 sm:gap-4">
+            <div className="flex gap-2.5 sm:gap-4">
               <CoachAvatar />
               <div className="flex items-center gap-2 pt-1.5 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" /> Le coach écrit...
@@ -210,15 +229,15 @@ export function InterviewPrepChat({
         </div>
       </div>
 
-      <div className="shrink-0 bg-background px-4 pb-4 sm:px-6">
+      <div className="shrink-0 bg-background px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
         <div className="mx-auto w-full max-w-3xl">
-          <div className="flex items-end gap-2 rounded-3xl border border-border bg-card p-2 pl-5 shadow-soft focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30">
+          <div className="flex items-end gap-2 rounded-3xl border border-border bg-card p-1.5 pl-4 shadow-soft sm:p-2 sm:pl-5 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !isTouchDevice()) {
                   e.preventDefault();
                   handleSend();
                 }
@@ -232,9 +251,8 @@ export function InterviewPrepChat({
               }
               rows={1}
               disabled={ending}
-              autoFocus
               aria-label="Votre message"
-              className="max-h-[220px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
+              className="max-h-[220px] flex-1 resize-none bg-transparent py-2 text-base leading-relaxed outline-none sm:text-[15px] placeholder:text-muted-foreground disabled:opacity-50"
             />
             {dictation.supported && (
               <Button
@@ -267,7 +285,12 @@ export function InterviewPrepChat({
               <ArrowUp className="size-4" />
             </Button>
           </div>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
+          {dictation.listening && (
+            <p className="mt-1.5 text-center text-xs text-destructive sm:hidden">
+              Dictée en cours : relisez puis appuyez sur la flèche pour envoyer.
+            </p>
+          )}
+          <p className="mt-2 hidden text-center text-xs text-muted-foreground sm:block">
             {dictation.listening
               ? "Dictée en cours : relisez puis appuyez sur Entrée ou sur la flèche pour envoyer."
               : "Entrée pour envoyer · Maj + Entrée pour aller à la ligne · Micro pour dicter"}
@@ -280,15 +303,15 @@ export function InterviewPrepChat({
 
 function RecruiterAvatar() {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
-      <Briefcase className="size-4" />
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8 bg-foreground text-background">
+      <Briefcase className="size-3.5 sm:size-4" />
     </span>
   );
 }
 
 function CoachAvatar() {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8 bg-primary text-primary-foreground">
       <Mic className="size-4" />
     </span>
   );

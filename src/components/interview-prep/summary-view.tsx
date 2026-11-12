@@ -83,14 +83,14 @@ export function SummaryView({
 
   return (
     <Card className="shadow-soft">
-      <CardHeader>
+      <CardHeader className="px-4 sm:px-6">
         <CardTitle>Compte rendu de votre session</CardTitle>
         <CardDescription>
           Téléchargez-le maintenant : rien n&apos;est conservé, il disparaîtra dès que vous quitterez la
           page ou relancerez une session.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 px-4 sm:px-6">
         <Tabs defaultValue="summary">
           <TabsList>
             <TabsTrigger value="summary">Compte rendu</TabsTrigger>
@@ -143,7 +143,7 @@ export function SummaryView({
           </TabsContent>
         </Tabs>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -154,7 +154,7 @@ export function SummaryView({
             />
             Inclure la transcription dans le PDF
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row [&>button]:w-full sm:[&>button]:w-auto">
             <Button type="button" variant="outline" onClick={onNewSession}>
               <RotateCcw className="size-4" /> Nouvelle session
             </Button>

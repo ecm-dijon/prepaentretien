@@ -31,14 +31,14 @@ export function SetupForm({
 
   return (
     <Card className="shadow-soft">
-      <CardHeader>
+      <CardHeader className="px-4 sm:px-6">
         <CardTitle>Avant de commencer</CardTitle>
         <CardDescription>
           Tout est facultatif, mais plus vous en dites, plus le coach personnalise ses questions (mises en
           situation, « pourquoi vous ? »...).
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 sm:px-6">
         <form
           className="space-y-5"
           onSubmit={(e) => {
@@ -56,7 +56,7 @@ export function SetupForm({
                 autoComplete="off"
               />
             </Field>
-            <Field label="Accroche" htmlFor="headline" hint="Ex : Étudiante en Bachelor Commerce, en recherche d'alternance en business development">
+            <Field label="Accroche" htmlFor="headline" hint="Ex : Étudiante en Bachelor Commerce, en recherche d'alternance en développement commercial">
               <Input
                 id="headline"
                 value={value.headline}
@@ -113,12 +113,12 @@ export function SetupForm({
             />
           </Field>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
               Aucun contenu n&apos;est enregistré : tout est effacé dès que vous quittez la page.
             </p>
-            <Button type="submit">
+            <Button type="submit" size="lg" className="w-full sm:w-auto">
               <Play className="size-4" /> Démarrer la simulation
             </Button>
           </div>

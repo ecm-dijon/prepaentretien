@@ -57,12 +57,16 @@ export function useDictation({
     if (!Ctor) return;
     const recognition = new Ctor();
     recognition.lang = "fr-FR";
-    recognition.continuous = true;
+    // Sur Android, Chrome répète les phrases en mode continu : on y dicte
+    // phrase par phrase (relance automatique à chaque fin, voir onend).
+    recognition.continuous = !/Android/i.test(navigator.userAgent);
     recognition.interimResults = true;
     baseRef.current = getText();
     finalRef.current = "";
 
     recognition.onresult = (event) => {
+      // Ignore tout résultat tardif d'une dictée déjà arrêtée / annulée.
+      if (recognitionRef.current !== recognition) return;
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -83,6 +87,7 @@ export function useDictation({
       // "no-speech" / "aborted" : on laisse onend relancer si besoin.
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
       // Le navigateur coupe parfois la dictée après un silence : on relance
       // tant que l'utilisateur ne l'a pas arrêtée lui-même.
       if (wantedRef.current) {
@@ -114,6 +119,26 @@ export function useDictation({
     }
   }, [startRecognition, onError]);
 
+  // Arrêt immédiat sans attendre les derniers résultats (à l'envoi du
+  // message) : sinon le navigateur renvoie la dernière phrase reconnue juste
+  // après, et elle se réécrit dans la zone de saisie qu'on vient de vider.
+  const cancel = useCallback(() => {
+    wantedRef.current = false;
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (recognition) {
+      recognition.onresult = null;
+      recognition.onend = null;
+      recognition.onerror = null;
+      try {
+        recognition.abort();
+      } catch {
+        // déjà arrêtée
+      }
+    }
+    setListening(false);
+  }, []);
+
   useEffect(
     () => () => {
       wantedRef.current = false;
@@ -122,5 +147,5 @@ export function useDictation({
     []
   );
 
-  return { supported, listening, start, stop, toggle: listening ? stop : start };
+  return { supported, listening, start, stop, cancel, toggle: listening ? stop : start };
 }

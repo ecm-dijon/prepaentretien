@@ -134,14 +134,14 @@ export function InterviewPrepApp() {
   if (phase === "setup") {
     return (
       <PageShell>
-        <div className="mb-8 space-y-2 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">Préparez votre entretien d&apos;alternance</h1>
+        <div className="mb-6 space-y-2 text-center sm:mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">Préparez votre entretien d&apos;alternance</h1>
           <p className="text-muted-foreground">
             Le coach IA joue le rôle du recruteur, vous donne un retour après chaque réponse et vous
             remet un compte rendu à télécharger à la fin.
           </p>
         </div>
-        <div className="mb-6">
+        <div className="mb-5 sm:mb-6">
           <UsageNotice />
         </div>
         <SetupForm value={student} onChange={setStudent} onStart={handleStart} />
@@ -186,7 +186,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
       <AppHeader />
-      <main className="relative flex-1 px-4 py-10 sm:px-6">
+      <main className="relative flex-1 px-3 py-6 sm:px-6 sm:py-10">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(ellipse_at_top,var(--brand-50),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top,var(--brand-800),transparent_65%)] dark:opacity-30"
           aria-hidden
