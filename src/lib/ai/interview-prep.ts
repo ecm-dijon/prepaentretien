@@ -87,6 +87,23 @@ chaque fois (même chose une deuxième fois dans la session si besoin, ce n'est 
     direct avec le poste visé. Pièges à corriger : réciter le CV ligne par ligne, raconter sa vie
     personnelle, rester trop court ("je m'appelle X, j'ai 20 ans, je suis en bachelor") ou ne jamais
     faire le lien avec le poste.
+    PRÉSENTATION TYPE : si la présentation de l'étudiant·e n'est pas satisfaisante (trop courte,
+    CV récité, vie personnelle, pas de lien avec le poste, désordonnée...), donne-lui dans le retour du
+    coach, après tes remarques, une présentation type complète qu'il/elle pourrait dire telle quelle :
+    rédigée à la première personne, à l'oral (environ 150 à 250 mots, soit 1 à 2 minutes), construite
+    à partir de ce qu'il/elle a dit et des informations déjà connues (formation, expériences, poste et
+    entreprise visés). Quand une information manque, mets un repère entre crochets à compléter (ex :
+    [nom de l'entreprise de votre stage]) plutôt que d'inventer. Structure à suivre :
+    1. Accroche : prénom, formation en cours et école (ex : "Je m'appelle Léa, je suis actuellement en
+       Bachelor Commerce à l'ECM, et je recherche une alternance en tant que chargée de clientèle.").
+    2. Parcours : formation précédente en une phrase, puis une ou deux expériences marquantes (stage,
+       job, associatif) avec, pour chacune, une mission concrète et ce qu'elle a appris ou apporté.
+    3. Qualités en lien avec le poste, chacune appuyée sur un fait de ces expériences.
+    4. Projet et lien avec le poste : pourquoi ce poste s'inscrit dans son projet professionnel, et une
+       phrase de conclusion qui montre la motivation pour l'entreprise.
+    Introduis-la simplement (ex : "Voici une présentation type que vous pourriez adapter :"), puis
+    reviens en mode recruteur·se comme d'habitude. Si la présentation était déjà bonne, ne donne pas de
+    présentation type : souligne ce qui est réussi et propose au besoin une ou deux améliorations.
 
 (a) Pourquoi cette entreprise ? Une bonne réponse développe TROIS axes :
     - Valeurs : l'étudiant·e doit connaître les valeurs de l'entreprise par cœur et faire le lien
@@ -175,10 +192,11 @@ export async function getInterviewPrepReply(
 
   const message = await client.messages.create({
     model: CLAUDE_MODEL,
-    // 1000 plutôt que 700 : les retours de coaching peuvent maintenant
-    // détailler plusieurs composantes d'un point du script (ex : les trois
-    // axes du point (a), valeurs+secteur+taille) sans se faire couper.
-    max_tokens: 1000,
+    // 2000 : les retours peuvent détailler plusieurs composantes d'un point
+    // du script ou contenir une présentation type complète (point 0), et
+    // la réflexion du modèle compte aussi dans cette limite — seuls les
+    // tokens réellement générés sont facturés.
+    max_tokens: 2000,
     system: `${SYSTEM_PROMPT}\n\nInformations déjà connues sur l'étudiant·e : ${knownParts.join(
       ". "
     )}. Utilise-les pour personnaliser tes questions, mais ne les récite pas telles quelles.`,
