@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Briefcase, Lightbulb, Loader2, Mic, MicOff, Square, X } from "lucide-react";
+import { ArrowUp, Briefcase, Lightbulb, Loader2, Mic, MicOff, Square, Volume2, VolumeX, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ import { AppHeader } from "./app-header";
 import type { Message } from "./types";
 import { UsageNotice } from "./usage-notice";
 import { useDictation } from "./use-dictation";
+import { unlockSpeech, useSpeech } from "./use-speech";
 
 const MAX_INPUT_HEIGHT = 220;
 
@@ -49,6 +50,11 @@ export function InterviewPrepChat({
   const inputValueRef = useRef("");
   inputValueRef.current = input;
 
+  // Voix du recruteur : ses questions sont lues à voix haute (désactivable).
+  const speech = useSpeech();
+  const speechEnabledRef = useRef(speech.enabled);
+  speechEnabledRef.current = speech.enabled;
+
   const dictation = useDictation({
     getText: useCallback(() => inputValueRef.current, []),
     setText: setInput,
@@ -77,6 +83,8 @@ export function InterviewPrepChat({
     const content = input.trim();
     if (!content || sending || ending) return;
     dictation.cancel();
+    speech.stop();
+    unlockSpeech();
 
     const previous = messages;
     setMessages([...previous, { role: "user", content }]);
@@ -85,10 +93,18 @@ export function InterviewPrepChat({
     startSending(async () => {
       const result = await sendInterviewPrepMessageAction(previous, content, student, sessionId);
       if (result.success) {
+        const startIndex = previous.length + 1;
         setMessages((prev) => [
           ...prev,
           ...result.replies.map((reply): Message => ({ role: "assistant", content: reply })),
         ]);
+        // Lit à voix haute ce que dit le/la recruteur·se dans la réponse.
+        if (speechEnabledRef.current) {
+          result.replies.forEach((reply, k) => {
+            const parts = splitCoachMessage(reply);
+            if (parts.kind === "interview") speech.speak(parts.recruiter, `${startIndex + k}-recruiter`);
+          });
+        }
       } else {
         // Rien n'est stocké côté serveur : on retire le message non traité
         // et on le remet dans la zone de saisie pour pouvoir le renvoyer.
@@ -110,6 +126,20 @@ export function InterviewPrepChat({
             : `Simulation en cours · ${userTurns} réponse${userTurns > 1 ? "s" : ""}`
         }
         actions={
+          <>
+          {speech.supported && (
+            <Button
+              type="button"
+              variant={speech.enabled ? "secondary" : "ghost"}
+              size="sm"
+              onClick={speech.toggleEnabled}
+              aria-pressed={speech.enabled}
+              title={speech.enabled ? "Couper la voix du recruteur" : "Activer la voix du recruteur"}
+            >
+              {speech.enabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              <span className="hidden sm:inline">{speech.enabled ? "Voix activée" : "Voix coupée"}</span>
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -121,6 +151,7 @@ export function InterviewPrepChat({
             <span className="hidden sm:inline">{ending ? "Compte rendu en cours..." : "Terminer la session"}</span>
             <span className="sm:hidden">Terminer</span>
           </Button>
+          </>
         }
       />
 
@@ -182,6 +213,7 @@ export function InterviewPrepChat({
                             </p>
                             <div className="text-[15px] leading-relaxed break-words whitespace-pre-line">{parts.feedback}</div>
                           </div>
+                          <ListenButton speech={speech} text={parts.feedback} id={`${i}-feedback`} />
                           {noteReminder}
                         </div>
                       </div>
@@ -191,6 +223,7 @@ export function InterviewPrepChat({
                       <div className="min-w-0 flex-1 pt-1">
                         <p className="mb-1 text-xs font-semibold text-muted-foreground">Recruteur·se</p>
                         <div className="text-[15px] leading-relaxed break-words whitespace-pre-line">{parts.recruiter}</div>
+                        <ListenButton speech={speech} text={parts.recruiter} id={`${i}-recruiter`} />
                         {!parts.feedback && noteReminder}
                       </div>
                     </div>
@@ -210,6 +243,7 @@ export function InterviewPrepChat({
                     >
                       {parts.text}
                     </div>
+                    <ListenButton speech={speech} text={parts.text} id={`${i}-text`} />
                     {noteReminder}
                   </div>
                 </div>
@@ -264,6 +298,8 @@ export function InterviewPrepChat({
                 // toujours le message, même juste après un clic sur le micro.
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
+                  // Coupe la voix avant de dicter (sinon le micro l'entendrait).
+                  if (!dictation.listening) speech.stop();
                   dictation.toggle();
                   inputRef.current?.focus();
                 }}
@@ -298,6 +334,32 @@ export function InterviewPrepChat({
         </div>
       </div>
     </div>
+  );
+}
+
+function ListenButton({
+  speech,
+  text,
+  id,
+}: {
+  speech: ReturnType<typeof useSpeech>;
+  text: string;
+  id: string;
+}) {
+  if (!speech.supported) return null;
+  const playing = speech.speakingId === id;
+  return (
+    <button
+      type="button"
+      onClick={() => (playing ? speech.stop() : speech.speak(text, id))}
+      className={cn(
+        "mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground",
+        playing && "text-primary"
+      )}
+    >
+      {playing ? <Square className="size-3" /> : <Volume2 className="size-3.5" />}
+      {playing ? "Arrêter la lecture" : "Écouter"}
+    </button>
   );
 }
 

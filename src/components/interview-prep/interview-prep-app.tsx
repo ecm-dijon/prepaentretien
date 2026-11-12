@@ -19,6 +19,7 @@ import { AppHeader } from "./app-header";
 import { InterviewPrepChat } from "./interview-prep-chat";
 import { SetupForm } from "./setup-form";
 import { SummaryView } from "./summary-view";
+import { unlockSpeech } from "./use-speech";
 import { UsageNotice } from "./usage-notice";
 import { EMPTY_STUDENT, type Message, type StudentForm } from "./types";
 
@@ -88,6 +89,7 @@ export function InterviewPrepApp() {
   }, [hasUnsavedWork]);
 
   function handleStart() {
+    unlockSpeech(); // iOS/Safari : la voix doit être débloquée par un clic
     const ctx = toContext(student);
     setContext(ctx);
     setMessages([{ role: "assistant", content: openingMessage(ctx.firstName) }]);

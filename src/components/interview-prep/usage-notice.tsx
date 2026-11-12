@@ -32,7 +32,7 @@ export function UsageNotice({ compact = false }: { compact?: boolean }) {
         <span>
           {compact
             ? "Pour une meilleure utilisation, utilisez la dictée vocale (bouton micro en bas)."
-            : "Pour une meilleure utilisation, utilisez la dictée vocale : cliquez sur le bouton micro à côté de la zone de réponse et parlez comme en vrai entretien."}
+            : "Pour une meilleure utilisation, utilisez la dictée vocale : cliquez sur le bouton micro à côté de la zone de réponse et parlez comme en vrai entretien. Le recruteur lit aussi ses questions à voix haute : pensez à monter le son."}
           {supported === false &&
             " (Non disponible sur ce navigateur : utilisez Chrome, Edge ou Safari, ou le micro du clavier de votre téléphone.)"}
         </span>
