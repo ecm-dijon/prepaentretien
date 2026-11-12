@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
+import { coachMessageToText } from "@/lib/coach-message";
 import { cn } from "@/lib/utils";
 
 import type { Message } from "./types";
@@ -135,7 +136,7 @@ export function SummaryView({
                       : "bg-accent text-accent-foreground"
                   )}
                 >
-                  {message.content}
+                  {message.role === "user" ? message.content : coachMessageToText(message.content)}
                 </div>
               </div>
             ))}

@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
+import { coachMessageToText } from "@/lib/coach-message";
 
 import type { Message } from "./types";
 
@@ -145,7 +146,9 @@ export function SummaryPdf({
               {transcript.map((m, i) => (
                 <View key={i} style={styles.turn}>
                   <Text style={styles.turnLabel}>{m.role === "user" ? "Étudiant·e" : "Coach"}</Text>
-                  <Text style={styles.turnText}>{m.content}</Text>
+                  <Text style={styles.turnText}>
+                    {m.role === "user" ? m.content : coachMessageToText(m.content)}
+                  </Text>
                 </View>
               ))}
             </View>

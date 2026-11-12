@@ -9,9 +9,9 @@
 // des notes", qui ne doit apparaître qu'après une vraie réponse de coaching.
 export const PRE_INTERVIEW_CHECKLIST_MESSAGE = `Quelques rappels avant le jour J :
 - Tenue correcte et repassée, adaptée au secteur visé
-- Arrivez 10 à 15 minutes en avance, pas plus
-- Renseignez-vous en détail sur l'entreprise : qui est le/la dirigeant·e, son évolution sur les 10 dernières années, son chiffre d'affaires actuel, son nombre de salariés, son secteur d'activité, ses produits/services phares, ses valeurs et sa culture, son actualité récente (site, presse, réseaux sociaux), ses principaux concurrents
-- Préparez 2-3 questions à poser au recruteur
+- Arrivez 10 à 15 minutes en avance
+- Renseignez-vous en détail sur l'entreprise : qui est le/la dirigeant·e, l'évolution de son marché sur les 10 dernières années, son chiffre d'affaires actuel, son nombre de salariés, son secteur d'activité, ses produits/services phares, ses valeurs et sa culture, son actualité récente (site, presse, réseaux sociaux), ses principaux concurrents
+- Préparez une dizaine de questions à poser au recruteur
 - Apportez votre CV imprimé
 - Téléphone en silencieux et rangé
 

@@ -27,6 +27,11 @@ interface, même compte rendu** — mais **sans compte, sans base de données, s
    a. Pourquoi cette entreprise ? · b. Pourquoi ce poste ? · c. Pourquoi vous ? ·
    d. Que dirait votre ancien employeur ? · e. Axes d'amélioration ? · f. Dans 5 à 10 ans ? ·
    g. Mises en situation · h. Fin de l'entretien ? · i. Les 24h suivantes ?
+   Le coach accueille l'étudiant·e comme un vrai recruteur (« Bonjour, bienvenue chez… pouvez-vous
+   vous présenter ? »), et l'interface sépare visuellement le **retour du coach** de la **question du
+   recruteur**. Les réponses peuvent être **dictées à la voix** (bouton micro ; Chrome, Edge ou
+   Safari — l'audio est traité par le service de reconnaissance vocale du navigateur, rien n'est
+   conservé par l'application).
 3. **« Terminer la session »** : l'IA génère le compte rendu structuré (synthèse, points forts, axes
    d'amélioration, conseils clés), affiché à l'écran avec la transcription complète.
 4. **« Télécharger le PDF »** (option : inclure la transcription), puis éventuellement

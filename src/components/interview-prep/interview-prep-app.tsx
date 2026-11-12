@@ -19,6 +19,7 @@ import { AppHeader } from "./app-header";
 import { InterviewPrepChat } from "./interview-prep-chat";
 import { SetupForm } from "./setup-form";
 import { SummaryView } from "./summary-view";
+import { UsageNotice } from "./usage-notice";
 import { EMPTY_STUDENT, type Message, type StudentForm } from "./types";
 
 type Phase = "setup" | "chat" | "summary";
@@ -139,6 +140,9 @@ export function InterviewPrepApp() {
             Le coach IA joue le rôle du recruteur, vous donne un retour après chaque réponse et vous
             remet un compte rendu à télécharger à la fin.
           </p>
+        </div>
+        <div className="mb-6">
+          <UsageNotice />
         </div>
         <SetupForm value={student} onChange={setStudent} onStart={handleStart} />
       </PageShell>

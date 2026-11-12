@@ -1,16 +1,19 @@
 "use client";
 
-import { ArrowUp, Loader2, Mic, Square } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { ArrowUp, Briefcase, Lightbulb, Loader2, Mic, MicOff, Square } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { sendInterviewPrepMessageAction, type StudentContext } from "@/lib/actions/interview-prep";
 import { PRE_INTERVIEW_CHECKLIST_MESSAGE } from "@/lib/ai/interview-prep-checklist";
+import { splitCoachMessage } from "@/lib/coach-message";
 import { cn } from "@/lib/utils";
 
 import { AppHeader } from "./app-header";
 import type { Message } from "./types";
+import { UsageNotice } from "./usage-notice";
+import { useDictation } from "./use-dictation";
 
 const MAX_INPUT_HEIGHT = 220;
 
@@ -36,6 +39,14 @@ export function InterviewPrepChat({
   const [sending, startSending] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputValueRef = useRef("");
+  inputValueRef.current = input;
+
+  const dictation = useDictation({
+    getText: useCallback(() => inputValueRef.current, []),
+    setText: setInput,
+    onError: useCallback((message: string) => toast.error(message), []),
+  });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -58,6 +69,7 @@ export function InterviewPrepChat({
   function handleSend() {
     const content = input.trim();
     if (!content || sending || ending) return;
+    dictation.stop();
 
     const previous = messages;
     setMessages([...previous, { role: "user", content }]);
@@ -103,6 +115,12 @@ export function InterviewPrepChat({
         }
       />
 
+      <div className="shrink-0 border-b border-border/60 bg-background px-4 py-2 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          <UsageNotice compact />
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6">
           {(() => {
@@ -127,6 +145,40 @@ export function InterviewPrepChat({
                 );
               }
 
+              const parts = splitCoachMessage(message.content);
+              const noteReminder = showNoteReminder && (
+                <p className="mt-2 text-xs font-medium text-destructive">⚠️ Pensez à prendre des notes !</p>
+              );
+
+              if (parts.kind === "interview") {
+                return (
+                  <div key={i} className="space-y-4">
+                    {parts.feedback && (
+                      <div className="flex gap-3 sm:gap-4">
+                        <CoachAvatar />
+                        <div className="min-w-0 flex-1">
+                          <div className="rounded-2xl border border-border bg-accent/40 px-5 py-4">
+                            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-primary uppercase">
+                              <Lightbulb className="size-3.5" /> Retour du coach
+                            </p>
+                            <div className="text-[15px] leading-relaxed whitespace-pre-line">{parts.feedback}</div>
+                          </div>
+                          {noteReminder}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-3 sm:gap-4">
+                      <RecruiterAvatar />
+                      <div className="min-w-0 flex-1 pt-1">
+                        <p className="mb-1 text-xs font-semibold text-muted-foreground">Recruteur·se</p>
+                        <div className="text-[15px] leading-relaxed whitespace-pre-line">{parts.recruiter}</div>
+                        {!parts.feedback && noteReminder}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={i} className="flex gap-3 sm:gap-4">
                   <CoachAvatar />
@@ -137,11 +189,9 @@ export function InterviewPrepChat({
                         isChecklistMessage && "rounded-2xl border border-border bg-accent/40 px-5 py-4"
                       )}
                     >
-                      {message.content}
+                      {parts.text}
                     </div>
-                    {showNoteReminder && (
-                      <p className="mt-2 text-xs font-medium text-destructive">⚠️ Pensez à prendre des notes !</p>
-                    )}
+                    {noteReminder}
                   </div>
                 </div>
               );
@@ -173,13 +223,39 @@ export function InterviewPrepChat({
                   handleSend();
                 }
               }}
-              placeholder={userTurns === 0 ? "Décrivez le poste visé (intitulé, entreprise, secteur)..." : "Écrivez votre réponse..."}
+              placeholder={
+                dictation.listening
+                  ? "Parlez, votre réponse s'écrit ici..."
+                  : userTurns === 0
+                    ? "Décrivez le poste visé (intitulé, entreprise, secteur)..."
+                    : "Écrivez ou dictez votre réponse..."
+              }
               rows={1}
               disabled={ending}
               autoFocus
               aria-label="Votre message"
               className="max-h-[220px] flex-1 resize-none bg-transparent py-2 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-50"
             />
+            {dictation.supported && (
+              <Button
+                type="button"
+                size="icon"
+                variant={dictation.listening ? "destructive" : "outline"}
+                className={cn("size-9 shrink-0 rounded-full", dictation.listening && "animate-pulse")}
+                // Garde le curseur dans la zone de réponse : Entrée envoie
+                // toujours le message, même juste après un clic sur le micro.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  dictation.toggle();
+                  inputRef.current?.focus();
+                }}
+                disabled={ending}
+                aria-label={dictation.listening ? "Arrêter la dictée vocale" : "Dicter ma réponse"}
+                title={dictation.listening ? "Arrêter la dictée vocale" : "Dicter ma réponse"}
+              >
+                {dictation.listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+              </Button>
+            )}
             <Button
               type="button"
               size="icon"
@@ -192,12 +268,21 @@ export function InterviewPrepChat({
             </Button>
           </div>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Entrée pour envoyer · Maj + Entrée pour aller à la ligne · Rien n&apos;est conservé après la
-            fermeture de la page.
+            {dictation.listening
+              ? "Dictée en cours : relisez puis appuyez sur Entrée ou sur la flèche pour envoyer."
+              : "Entrée pour envoyer · Maj + Entrée pour aller à la ligne · Micro pour dicter"}
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+function RecruiterAvatar() {
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+      <Briefcase className="size-4" />
+    </span>
   );
 }
 
