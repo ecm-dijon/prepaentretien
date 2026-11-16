@@ -1,5 +1,6 @@
 import "server-only";
 
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
 import { CLAUDE_MODEL, getAnthropicClient } from "@/lib/ai/client";
@@ -248,45 +249,27 @@ export async function getInterviewPrepReply(
 }
 
 export const interviewPrepSummarySchema = z.object({
-  overview: z.string(),
-  strengths: z.array(z.string()),
-  improvements: z.array(z.string()),
-  keyAdvice: z.array(z.string()),
+  overview: z
+    .string()
+    .describe(
+      "Résumé global de la session en 2-3 phrases : poste visé, tonalité générale de l'entretien, niveau de préparation observé."
+    ),
+  strengths: z
+    .array(z.string())
+    .describe(
+      "3 à 6 points forts concrets observés pendant l'entretien (formulations, exemples utilisés, structure des réponses...)."
+    ),
+  improvements: z
+    .array(z.string())
+    .describe("3 à 6 axes d'amélioration concrets, actionnables pour le prochain entretien."),
+  keyAdvice: z
+    .array(z.string())
+    .describe(
+      "3 à 5 conseils clés à retenir avant le vrai entretien, formulés comme des recommandations directes et pratiques."
+    ),
 });
 
 export type InterviewPrepSummary = z.infer<typeof interviewPrepSummarySchema>;
-
-const SUMMARY_TOOL = {
-  name: "record_interview_summary",
-  description:
-    "Enregistre un compte rendu structuré de la session de préparation à l'entretien via l'outil fourni. Base-toi uniquement sur ce qui a réellement été dit dans la transcription. Appelle l'outil une seule fois.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      overview: {
-        type: "string",
-        description:
-          "Résumé global de la session en 2-3 phrases : poste visé, tonalité générale de l'entretien, niveau de préparation observé.",
-      },
-      strengths: {
-        type: "array",
-        items: { type: "string" },
-        description: "3 à 6 points forts concrets observés pendant l'entretien (formulations, exemples utilisés, structure des réponses...).",
-      },
-      improvements: {
-        type: "array",
-        items: { type: "string" },
-        description: "3 à 6 axes d'amélioration concrets, actionnables pour le prochain entretien.",
-      },
-      keyAdvice: {
-        type: "array",
-        items: { type: "string" },
-        description: "3 à 5 conseils clés à retenir avant le vrai entretien, formulés comme des recommandations directes et pratiques.",
-      },
-    },
-    required: ["overview", "strengths", "improvements", "keyAdvice"],
-  },
-};
 
 // Analysis pass over a finished session, not a live conversation turn — same
 // reasoning as extractOnboardingProfile: the model requires the message list
@@ -304,39 +287,31 @@ export async function summarizeInterviewPrepSession(
     )
     .join("\n\n");
 
-  const message = await client.messages.create({
+  // Sorties structurées (output_config.format) : la réponse est garantie
+  // conforme au schéma. Remplace l'ancien appel d'outil forcé (tool_choice
+  // "tool"), qui échouait : la réflexion du modèle, active par défaut, est
+  // incompatible avec un appel d'outil forcé — d'où un compte rendu absent
+  // et un PDF ne contenant que la transcription.
+  const message = await client.messages.parse({
     model: CLAUDE_MODEL,
-    max_tokens: 1200,
+    // La réflexion du modèle compte dans cette limite.
+    max_tokens: 4000,
     system:
-      "Rédige TOUJOURS en français, sans aucune exception — jamais un mot dans une autre langue. Tu analyses la transcription d'une session de préparation à l'entretien entre le coach prépa entretien de l'ECM et un·e étudiant·e, et tu en extrais un compte rendu structuré via l'outil fourni. Adresse-toi à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement).",
-    tools: [SUMMARY_TOOL],
-    tool_choice: { type: "tool", name: "record_interview_summary" },
+      "Rédige TOUJOURS en français, sans aucune exception — jamais un mot dans une autre langue. Tu analyses la transcription d'une session de préparation à l'entretien entre le coach prépa entretien de l'ECM et un·e étudiant·e, et tu en extrais un compte rendu structuré. Base-toi uniquement sur ce qui a réellement été dit dans la transcription. Adresse-toi à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement). N'utilise aucune mise en forme Markdown.",
+    output_config: { format: zodOutputFormat(interviewPrepSummarySchema) },
     messages: [{ role: "user", content: `Transcription de la session :\n\n${transcript}` }],
   });
 
-  const toolUse = message.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    console.error(
-      "[interview-prep] summary: model did not call the tool. stop_reason:",
-      message.stop_reason
-    );
-    return null;
-  }
-
-  const parsed = interviewPrepSummarySchema.safeParse(toolUse.input);
-  if (!parsed.success) {
-    console.error(
-      "[interview-prep] summary: tool input failed validation:",
-      // Jamais le contenu lui-même : rien de la session ne doit être conservé,
-      // pas même dans les logs serveur.
-      Object.keys(parsed.error.flatten().fieldErrors).join(", ")
-    );
+  const parsed = message.parsed_output;
+  if (!parsed) {
+    // Jamais le contenu lui-même dans les logs : rien de la session n'est conservé.
+    console.error("[interview-prep] summary: pas de compte rendu exploitable. stop_reason:", message.stop_reason);
     return null;
   }
   return {
-    overview: sanitizeAiText(parsed.data.overview),
-    strengths: sanitizeAiTextArray(parsed.data.strengths) ?? [],
-    improvements: sanitizeAiTextArray(parsed.data.improvements) ?? [],
-    keyAdvice: sanitizeAiTextArray(parsed.data.keyAdvice) ?? [],
+    overview: sanitizeAiText(parsed.overview),
+    strengths: sanitizeAiTextArray(parsed.strengths) ?? [],
+    improvements: sanitizeAiTextArray(parsed.improvements) ?? [],
+    keyAdvice: sanitizeAiTextArray(parsed.keyAdvice) ?? [],
   };
 }
