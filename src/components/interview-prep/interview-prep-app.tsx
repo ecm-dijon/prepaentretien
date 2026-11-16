@@ -18,7 +18,7 @@ import { openingMessage } from "@/lib/opening-message";
 import { AppHeader } from "./app-header";
 import { InterviewPrepChat } from "./interview-prep-chat";
 import { SetupForm } from "./setup-form";
-import { SummaryView } from "./summary-view";
+import { preloadPdfModules, SummaryView } from "./summary-view";
 import { unlockSpeech } from "./use-speech";
 import { UsageNotice } from "./usage-notice";
 import { EMPTY_STUDENT, type Message, type StudentForm } from "./types";
@@ -76,6 +76,14 @@ export function InterviewPrepApp() {
 
   const hasUnsavedWork =
     (phase === "chat" && messages.some((m) => m.role === "user")) || (phase === "summary" && !downloaded);
+
+  // Charge le générateur de PDF dès l'ouverture de la page (voir
+  // preloadPdfModules) pour que le téléchargement fonctionne même si le site
+  // est mis à jour pendant la simulation.
+  useEffect(() => {
+    const id = setTimeout(() => void preloadPdfModules().catch(() => {}), 2000);
+    return () => clearTimeout(id);
+  }, []);
 
   // Avertit avant de quitter / recharger : tout serait perdu.
   useEffect(() => {

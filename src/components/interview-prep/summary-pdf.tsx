@@ -3,6 +3,8 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
 import { coachMessageToText } from "@/lib/coach-message";
 
+import { toPdfText as t } from "./pdf-text";
+
 import type { Message } from "./types";
 
 // Même charte que la fiche PDF de la Plateforme des Compétences.
@@ -66,7 +68,7 @@ function Bullets({ items }: { items: string[] }) {
       {items.map((item, i) => (
         <View key={i} style={styles.bulletRow} wrap={false}>
           <Text style={styles.bullet}>•</Text>
-          <Text style={styles.bulletText}>{item}</Text>
+          <Text style={styles.bulletText}>{t(item)}</Text>
         </View>
       ))}
     </View>
@@ -98,7 +100,7 @@ export function SummaryPdf({
             <Text style={styles.schoolName}>ECM — Prépa entretien</Text>
             <Text style={styles.title}>Compte rendu de simulation</Text>
             <Text style={styles.meta}>
-              {[studentName, date].filter(Boolean).join("  ·  ")}
+              {t([studentName, date].filter(Boolean).join("  ·  "))}
             </Text>
           </View>
         </View>
@@ -107,7 +109,7 @@ export function SummaryPdf({
           {target && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Poste visé</Text>
-              <Text style={styles.paragraph}>{target}</Text>
+              <Text style={styles.paragraph}>{t(target)}</Text>
             </View>
           )}
 
@@ -115,7 +117,7 @@ export function SummaryPdf({
             <>
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Synthèse</Text>
-                <Text style={styles.paragraph}>{summary.overview}</Text>
+                <Text style={styles.paragraph}>{t(summary.overview)}</Text>
               </View>
               {summary.strengths.length > 0 && (
                 <View style={styles.section}>
@@ -147,7 +149,7 @@ export function SummaryPdf({
                 <View key={i} style={styles.turn}>
                   <Text style={styles.turnLabel}>{m.role === "user" ? "Étudiant·e" : "Coach"}</Text>
                   <Text style={styles.turnText}>
-                    {m.role === "user" ? m.content : coachMessageToText(m.content)}
+                    {t(m.role === "user" ? m.content : coachMessageToText(m.content))}
                   </Text>
                 </View>
               ))}

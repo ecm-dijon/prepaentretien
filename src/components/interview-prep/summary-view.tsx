@@ -9,7 +9,7 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,13 @@ import { coachMessageToText } from "@/lib/coach-message";
 import { cn } from "@/lib/utils";
 
 import type { Message } from "./types";
+
+// Chargement anticipé du générateur de PDF (appelé dès l'ouverture de la
+// page) : si le site est redéployé pendant une simulation, ces fichiers ne
+// seraient plus disponibles au moment de télécharger.
+export function preloadPdfModules() {
+  return Promise.all([import("@react-pdf/renderer"), import("./summary-pdf")]);
+}
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
@@ -43,43 +50,100 @@ export function SummaryView({
   onNewSession: () => void;
 }) {
   const [includeTranscript, setIncludeTranscript] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const target = messages.find((m) => m.role === "user")?.content ?? "";
+  const withTranscript = includeTranscript || !summary;
 
-  async function handleDownload() {
-    setDownloading(true);
-    try {
-      // Généré entièrement dans le navigateur : le compte rendu ne repasse
-      // jamais par un serveur.
-      const [{ pdf }, { SummaryPdf }] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("./summary-pdf"),
-      ]);
-      const now = new Date();
-      const blob = await pdf(
-        <SummaryPdf
-          summary={summary}
-          studentName={studentName}
-          target={target}
-          date={formatDate(now)}
-          logoSrc={`${window.location.origin}/ecm-logo.png`}
-          transcript={includeTranscript || !summary ? messages : null}
-        />
-      ).toBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `compte-rendu-prepa-entretien-${now.toISOString().slice(0, 10)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      onDownloaded();
-    } catch (err) {
-      console.error("[summary-pdf] generation failed:", err);
+  // Le PDF est préparé à l'avance (et refait si l'option « transcription »
+  // change) : le clic sur « Télécharger » ne fait que déclencher le
+  // téléchargement d'un fichier déjà prêt. Sur iPhone / Safari, un
+  // téléchargement lancé après une attente n'est plus considéré comme
+  // demandé par l'utilisateur et peut être bloqué.
+  const [pdf, setPdf] = useState<{ url: string; key: string } | null>(null);
+  const [pdfError, setPdfError] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState(false);
+  const [showFallbackLink, setShowFallbackLink] = useState(false);
+  const pdfKey = `${withTranscript}-${summary ? "s" : "n"}-${messages.length}`;
+  const fileName = useRef(`compte-rendu-prepa-entretien-${new Date().toISOString().slice(0, 10)}.pdf`);
+
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    setPdfError(false);
+    (async () => {
+      try {
+        const [{ pdf: renderPdf }, { SummaryPdf }] = await preloadPdfModules();
+        const blob = await renderPdf(
+          <SummaryPdf
+            summary={summary}
+            studentName={studentName}
+            target={target}
+            date={formatDate(new Date())}
+            logoSrc={`${window.location.origin}/ecm-logo.png`}
+            transcript={withTranscript ? messages : null}
+          />
+        ).toBlob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setPdf({ url: createdUrl, key: pdfKey });
+      } catch (err) {
+        console.error("[summary-pdf] generation failed:", err);
+        if (!cancelled) setPdfError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      // Libéré un peu plus tard : un téléchargement en cours ne doit pas
+      // être interrompu.
+      if (createdUrl) {
+        const url = createdUrl;
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    };
+  }, [pdfKey, summary, studentName, target, withTranscript, messages]);
+
+  const ready = pdf !== null && pdf.key === pdfKey;
+
+  function triggerDownload(url: string) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName.current;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setShowFallbackLink(true);
+    onDownloaded();
+  }
+
+  // Si l'utilisateur a cliqué avant que le PDF soit prêt, on le télécharge
+  // dès qu'il l'est (le lien de secours reste disponible si le navigateur
+  // bloque ce téléchargement différé).
+  useEffect(() => {
+    if (pendingDownload && ready && pdf) {
+      setPendingDownload(false);
+      triggerDownload(pdf.url);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDownload, ready, pdf]);
+
+  useEffect(() => {
+    if (pendingDownload && pdfError) {
+      setPendingDownload(false);
       toast.error("Impossible de générer le PDF. Réessayez.");
-    } finally {
-      setDownloading(false);
+    }
+  }, [pendingDownload, pdfError]);
+
+  function handleDownload() {
+    if (ready && pdf) {
+      triggerDownload(pdf.url);
+    } else if (pdfError) {
+      toast.error("Impossible de générer le PDF. Réessayez.");
+    } else {
+      setPendingDownload(true);
     }
   }
+
+  const downloading = pendingDownload;
 
   return (
     <Card className="shadow-soft">
@@ -164,6 +228,21 @@ export function SummaryView({
             </Button>
           </div>
         </div>
+        {showFallbackLink && ready && pdf && (
+          <p className="text-center text-xs text-muted-foreground sm:text-right">
+            Le téléchargement ne démarre pas ?{" "}
+            <a
+              href={pdf.url}
+              download={fileName.current}
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-primary underline underline-offset-4"
+              onClick={onDownloaded}
+            >
+              Ouvrir le PDF
+            </a>
+          </p>
+        )}
       </CardContent>
     </Card>
   );
