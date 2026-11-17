@@ -7,12 +7,11 @@ import {
   Loader2,
   Mic,
   RotateCcw,
-  ShieldCheck,
   Sparkles,
   TriangleAlert,
   Upload,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { PageShell } from "@/components/app/page-shell";
@@ -25,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { analyzeCvAction } from "@/lib/actions/cv-analysis";
 import type { CvExtraction, CvReview } from "@/lib/ai/cv-analysis";
 import { DEGREE_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/lib/degree-options";
+import { NoStorageWarning } from "@/components/shared/no-storage-warning";
 import { cn } from "@/lib/utils";
 import { TimeoutError, withTimeout } from "@/lib/with-timeout";
 
@@ -78,6 +78,17 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Avertit avant de fermer / recharger la page : l'analyse serait perdue.
+  useEffect(() => {
+    if (!result && !analyzing) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [result, analyzing]);
 
   function pickFile(candidate: File | undefined | null) {
     if (!candidate) return;
@@ -165,13 +176,9 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
         </p>
       </div>
 
-      <p className="mb-5 flex items-start gap-2 rounded-lg border border-border bg-muted/60 px-4 py-3 text-sm sm:mb-6">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-        <span>
-          Votre CV n&apos;est pas conservé : il est analysé puis immédiatement oublié. L&apos;analyse
-          disparaît quand vous quittez la page, pensez à noter les conseils.
-        </span>
-      </p>
+      <div className="mb-5 sm:mb-6">
+        <CvNoStorageWarning />
+      </div>
 
       <Card className="shadow-soft">
         <CardContent className="space-y-6 px-4 py-6 sm:px-6">
@@ -295,10 +302,7 @@ function CvResult({ result, onReset, onPrepare }: { result: Result; onReset: () 
         </div>
       </div>
 
-      <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 px-4 py-3 text-sm">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-        Rien n&apos;est conservé : cette analyse disparaîtra quand vous quitterez la page.
-      </p>
+      <CvNoStorageWarning />
 
       {review?.profile_mismatch && (
         <Card className="border-ecm-orange/40 bg-ecm-orange/[0.05] shadow-soft">
@@ -497,6 +501,19 @@ function CvContent({ x }: { x: CvExtraction }) {
         )}
       </div>
     </CardContent>
+  );
+}
+
+function CvNoStorageWarning() {
+  return (
+    <NoStorageWarning>
+      <p className="font-semibold">Rien n&apos;est enregistré : attention aux fausses manipulations.</p>
+      <p>
+        Votre CV est analysé puis immédiatement oublié. Si vous fermez la page, la rechargez ou revenez en
+        arrière jusqu&apos;à quitter le site, l&apos;analyse est définitivement supprimée. Notez les conseils
+        qui vous sont utiles.
+      </p>
+    </NoStorageWarning>
   );
 }
 
