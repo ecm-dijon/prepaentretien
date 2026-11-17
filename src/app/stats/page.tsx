@@ -1,7 +1,8 @@
+import { ChevronDown, FileText, Mic, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Logo } from "@/components/shared/logo";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getDailyStats,
   getRecentCvAnalyses,
@@ -17,10 +18,18 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = { title: "Statistiques" };
 export const dynamic = "force-dynamic";
 
+// Une seule question par écran : « est-ce que les étudiant·e·s utilisent les
+// outils, et vont-ils au bout ? ». Une période à la fois (7 / 30 / 90 jours),
+// un grand chiffre par outil, le parcours étape par étape, l'activité par
+// jour ; le détail ligne par ligne est replié.
+
+const PERIODS = [7, 30, 90] as const;
+type Period = (typeof PERIODS)[number];
+
 // Au-delà de 30 min sans activité, une simulation non terminée est
 // considérée comme abandonnée.
 const IDLE_MS = 30 * 60 * 1000;
-const SESSIONS_SHOWN = 200;
+const DETAIL_LIMIT = 200;
 
 type Totals = Omit<DayStats, "date">;
 
@@ -35,41 +44,24 @@ function sum(days: DayStats[]): Totals {
 }
 
 const fr = (n: number) => n.toLocaleString("fr-FR");
-const pctValue = (part: number, total: number) => (total ? Math.round((part / total) * 100) : null);
-// « 12 sur 15 (80 %) » — toujours le nombre réel à côté du pourcentage.
-const outOf = (part: number, total: number) =>
-  total ? `${fr(part)} sur ${fr(total)} (${pctValue(part, total)} %)` : "—";
-const avg = (total: number, count: number) =>
-  count ? (total / count).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "—";
+const pct = (part: number, total: number) => (total ? Math.round((part / total) * 100) : 0);
+const plural = (n: number, one: string, many: string) => `${fr(n)} ${n > 1 ? many : one}`;
+
 function formatDuration(ms: number) {
   const min = Math.round(ms / 60000);
   if (min < 1) return "moins d'1 min";
   if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`;
 }
-const avgDuration = (sec: number, count: number) => (count ? formatDuration((sec / count) * 1000) : "—");
-const plural = (n: number, word: string) => `${fr(n)} ${word}${n > 1 ? "s" : ""}`;
-const pctText = (part: number, total: number) => {
-  const v = pctValue(part, total);
-  return v === null ? "—" : `${v} %`;
-};
 function formatSeconds(ms: number) {
   const sec = Math.round(ms / 1000);
   return sec < 60 ? `${sec} s` : `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, "0")}`;
 }
-const avgSeconds = (sec: number, count: number) => (count ? formatSeconds((sec / count) * 1000) : "—");
-// Une analyse demandée se termine soit avec un résultat (complet ou
-// partiel), soit en échec.
-const cvRequested = (t: Totals) => t.cv + t.cv_failed;
-
-const CV_STATUS: Record<CvRunRecord["status"], { label: string; tone: Status["tone"] }> = {
-  ok: { label: "Complète", tone: "done" },
-  partial: { label: "Partielle", tone: "partial" },
-  failed: { label: "Échouée", tone: "none" },
-};
-
 function formatDay(iso: string) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+}
+function formatShortDay(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 function formatDateTime(ms: number) {
   return new Date(ms).toLocaleString("fr-FR", {
@@ -82,341 +74,219 @@ function formatDateTime(ms: number) {
   });
 }
 
-type Status = { label: string; tone: "done" | "live" | "partial" | "none" };
-function sessionStatus(s: SessionRecord, now: number): Status {
-  if (s.completedAt) return { label: "Terminée", tone: "done" };
-  if (now - s.lastActivityAt < IDLE_MS) return { label: "En cours", tone: "live" };
-  if (s.answers === 0) return { label: "Quittée sans répondre", tone: "none" };
-  return { label: "Abandonnée en cours de route", tone: "partial" };
-}
-const TONE_CLASS: Record<Status["tone"], string> = {
+type Tone = "done" | "live" | "partial" | "none";
+const TONE_CLASS: Record<Tone, string> = {
   done: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   live: "bg-primary/15 text-primary",
   partial: "bg-ecm-orange/15 text-ecm-orange",
   none: "bg-muted text-muted-foreground",
 };
 
-export default async function StatsPage() {
+function sessionStatus(s: SessionRecord, now: number): { label: string; tone: Tone } {
+  if (s.completedAt) return { label: "Terminée", tone: "done" };
+  if (now - s.lastActivityAt < IDLE_MS) return { label: "En cours", tone: "live" };
+  if (s.answers === 0) return { label: "Quittée sans répondre", tone: "none" };
+  return { label: "Abandonnée en cours de route", tone: "partial" };
+}
+
+const CV_STATUS: Record<CvRunRecord["status"], { label: string; tone: Tone }> = {
+  ok: { label: "Complète", tone: "done" },
+  partial: { label: "Partielle", tone: "partial" },
+  failed: { label: "Échouée", tone: "none" },
+};
+
+export default async function StatsPage({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
+  const { p } = await searchParams;
+  const period: Period = (PERIODS as readonly number[]).includes(Number(p)) ? (Number(p) as Period) : 30;
+
   const configured = isStatsConfigured();
-  const [days, sessions, cvRuns] = configured
-    ? await Promise.all([getDailyStats(90), getRecentSessions(SESSIONS_SHOWN), getRecentCvAnalyses(SESSIONS_SHOWN)])
+  const [allDays, allSessions, allCvRuns] = configured
+    ? await Promise.all([getDailyStats(90), getRecentSessions(DETAIL_LIMIT), getRecentCvAnalyses(DETAIL_LIMIT)])
     : [[], [], []];
+
   const now = Date.now();
-  const last7 = sum(days.slice(-7));
-  const last30 = sum(days.slice(-30));
-  const last90 = sum(days);
-
-  const interviewRows: Row[] = [
-    {
-      label: "Simulations démarrées",
-      help: "Nombre de fois où quelqu'un a cliqué sur « Démarrer la simulation ».",
-      value: (t) => fr(t.started),
-    },
-    {
-      label: "Avec le profil renseigné",
-      help: "Simulations où l'étudiant·e a rempli au moins un champ du formulaire de départ (diplôme, expériences…).",
-      value: (t) => outOf(t.profile_filled, t.started),
-    },
-    {
-      label: "Avec au moins une réponse",
-      help: "Simulations où l'étudiant·e a réellement échangé avec le coach (sinon : il/elle est parti·e sans répondre).",
-      value: (t) => outOf(t.engaged, t.started),
-    },
-    {
-      label: "Menées jusqu'au bout",
-      help: "Simulations terminées avec le bouton « Terminer la session » (compte rendu généré).",
-      value: (t) => outOf(t.completed, t.started),
-    },
-    {
-      label: "Durée moyenne d'une simulation terminée",
-      help: "Du clic sur « Démarrer » au clic sur « Terminer la session ».",
-      value: (t) => avgDuration(t.duration_sec, t.completed),
-    },
-    {
-      label: "Réponses par simulation terminée",
-      help: "Nombre moyen de messages envoyés au coach dans une simulation terminée.",
-      value: (t) => avg(t.completed_answers, t.completed),
-    },
-    {
-      label: "Total des réponses envoyées",
-      help: "Tous les messages envoyés au coach, simulations terminées ou non.",
-      value: (t) => fr(t.answers),
-    },
-    {
-      label: "Comptes rendus PDF téléchargés",
-      help: "Parmi les simulations terminées, combien ont téléchargé leur compte rendu.",
-      value: (t) => outOf(t.pdf, t.completed),
-    },
-  ];
-
-  const cvRows: Row[] = [
-    {
-      label: "Analyses lancées",
-      help: "Nombre de CV déposés puis envoyés à l'analyse (aucun CV n'est conservé).",
-      value: (t) => fr(cvRequested(t)),
-    },
-    {
-      label: "Analyses abouties",
-      help: "Analyses qui ont donné un résultat (complet, ou partiel si l'avis ou la lecture des informations a manqué).",
-      value: (t) => outOf(t.cv, cvRequested(t)),
-    },
-    {
-      label: "dont partielles",
-      help: "L'avis sur le CV ou la lecture de ses informations n'a pas abouti, l'autre partie s'est affichée.",
-      value: (t) => outOf(t.cv_partial, t.cv),
-    },
-    {
-      label: "Analyses en échec",
-      help: "Aucun résultat : service d'IA indisponible ou trop lent. À surveiller si ce chiffre augmente.",
-      value: (t) => outOf(t.cv_failed, cvRequested(t)),
-    },
-    {
-      label: "Temps moyen d'analyse",
-      help: "Du dépôt du CV à l'affichage du résultat, pour les analyses abouties.",
-      value: (t) => avgSeconds(t.cv_duration_sec, t.cv),
-    },
-    {
-      label: "Avec le diplôme indiqué",
-      help: "Analyses où l'étudiant·e a indiqué son diplôme (vérification de la cohérence CV / formation).",
-      value: (t) => outOf(t.cv_degree, t.cv),
-    },
-    {
-      label: "Écart CV / diplôme signalé",
-      help: "Parmi les analyses avec diplôme indiqué, celles où le CV semblait correspondre à une autre formation.",
-      value: (t) => outOf(t.cv_mismatch, t.cv_degree),
-    },
-    {
-      label: "Suivies d'une prépa entretien",
-      help: "Analyses après lesquelles l'étudiant·e a cliqué sur « Préparer un entretien avec ce CV ».",
-      value: (t) => outOf(t.cv_to_interview, t.cv),
-    },
-  ];
+  const since = now - period * 24 * 3600 * 1000;
+  const days = allDays.slice(-period);
+  const t = sum(days);
+  const sessions = allSessions.filter((s) => s.startedAt >= since);
+  const cvRuns = allCvRuns.filter((r) => r.at >= since);
+  const cvRequested = t.cv + t.cv_failed;
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="flex h-16 items-center border-b border-border/60 px-4 sm:px-6">
+    <div className="flex min-h-svh flex-col bg-muted/30">
+      <header className="flex h-14 items-center border-b border-border/60 bg-background px-4 sm:px-6">
         <Logo />
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 p-4 sm:p-6 lg:p-8">
-        <div className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Statistiques d&apos;usage</h1>
-          <nav className="flex flex-wrap gap-2 text-sm">
-            <a href="#entretien" className="rounded-full border border-border px-3 py-1 hover:bg-accent">
-              Préparer un entretien
-            </a>
-            <a href="#cv" className="rounded-full border border-border px-3 py-1 hover:bg-accent">
-              Analyser mon CV
-            </a>
-            <a href="#jours" className="rounded-full border border-border px-3 py-1 hover:bg-accent">
-              Jour par jour
-            </a>
+
+      <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Statistiques d&apos;usage</h1>
+            <p className="text-sm text-muted-foreground">
+              Anonymes : aucun nom, aucun contenu de simulation ni de CV.
+            </p>
+          </div>
+          <nav aria-label="Période" className="inline-flex rounded-full border border-border bg-background p-1 text-sm">
+            {PERIODS.map((d) => (
+              <Link
+                key={d}
+                href={`/stats?p=${d}`}
+                aria-current={d === period ? "page" : undefined}
+                className={cn(
+                  "rounded-full px-4 py-1.5 font-medium transition-colors",
+                  d === period ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {d} jours
+              </Link>
+            ))}
           </nav>
         </div>
 
         {!configured ? (
-          <Card>
-            <CardContent className="py-6 text-sm text-muted-foreground">
-              Les statistiques ne sont pas encore activées : créez une base Upstash Redis dans Vercel
-              (Storage) et reliez-la à ce projet, puis redéployez. Voir le README.
-            </CardContent>
-          </Card>
+          <Panel>
+            <p className="text-sm text-muted-foreground">
+              Les statistiques ne sont pas encore activées : créez une base Upstash Redis dans Vercel (Storage),
+              reliez-la à ce projet, puis redéployez.
+            </p>
+          </Panel>
         ) : (
           <>
-            {/* ------------------------------------------------ Entretien */}
-            <section id="entretien" className="scroll-mt-6 space-y-6">
-              <SectionTitle
-                title="Préparer un entretien"
-                text="Une simulation = une fois où un·e étudiant·e clique sur « Démarrer la simulation »."
-              />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Kpi
-                  value={fr(last30.started)}
-                  label={last30.started > 1 ? "simulations démarrées (30 j)" : "simulation démarrée (30 j)"}
-                  hint={`dont ${plural(last7.started, "simulation")} ces 7 derniers jours`}
-                />
-                <Kpi
-                  value={pctText(last30.engaged, last30.started)}
-                  label="ont échangé avec le coach"
-                  hint={`${plural(last30.engaged, "simulation")} sur ${fr(last30.started)} avec au moins une réponse`}
-                />
-                <Kpi
-                  value={pctText(last30.completed, last30.started)}
-                  label="menées jusqu'au bout"
-                  hint={`${plural(last30.completed, "simulation")} sur ${fr(last30.started)} terminée${last30.completed > 1 ? "s" : ""} avec compte rendu`}
-                />
-                <Kpi
-                  value={avgDuration(last30.duration_sec, last30.completed)}
-                  label="durée moyenne d'une simulation terminée"
-                  hint={`${avg(last30.completed_answers, last30.completed)} réponses en moyenne`}
+            {/* -------------------------------------------- Prépa entretien */}
+            <Panel>
+              <ToolHeader icon={<Mic className="size-5" />} title="Préparer un entretien" />
+
+              <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+                <div className="space-y-6">
+                  <Hero
+                    value={t.started}
+                    unit={t.started > 1 ? "simulations" : "simulation"}
+                    sentence={
+                      t.started
+                        ? `Dont ${plural(t.completed, "menée", "menées")} jusqu'au compte rendu (${pct(t.completed, t.started)} %).`
+                        : `Aucune simulation sur les ${period} derniers jours.`
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <MiniStat
+                      label="Durée moyenne"
+                      value={t.completed ? formatDuration((t.duration_sec / t.completed) * 1000) : "—"}
+                      hint="d'une simulation terminée"
+                    />
+                    <MiniStat
+                      label="Réponses en moyenne"
+                      value={t.completed ? (t.completed_answers / t.completed).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) : "—"}
+                      hint="par simulation terminée"
+                    />
+                  </div>
+                </div>
+
+                <Steps
+                  title="Jusqu'où vont les étudiant·e·s ?"
+                  total={t.started}
+                  steps={[
+                    { label: "Ont démarré une simulation", value: t.started },
+                    { label: "Ont répondu au moins une fois", value: t.engaged },
+                    { label: "Sont allés jusqu'au compte rendu", value: t.completed },
+                    { label: "Ont téléchargé le PDF", value: t.pdf },
+                  ]}
                 />
               </div>
 
-              {sessions.length > 0 && (
-                <Card className="shadow-soft">
-                  <CardHeader>
-                    <CardTitle className="text-base">Simulations individuelles</CardTitle>
-                    <CardDescription>
-                      Une ligne par simulation (les {SESSIONS_SHOWN} plus récentes, conservées 90 jours).
-                      Une simulation non terminée est « abandonnée » après 30 min sans activité.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-sm">
-                      <thead className="text-left text-xs text-muted-foreground">
-                        <tr>
-                          <th className="py-2 font-medium">Début</th>
-                          <th className="py-2 font-medium">Durée</th>
-                          <th className="py-2 text-right font-medium">Réponses</th>
-                          <th className="py-2 pl-6 font-medium">Statut</th>
-                          <th className="py-2 font-medium">Profil rempli</th>
-                          <th className="py-2 font-medium">PDF</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border tabular-nums">
-                        {sessions.map((s) => {
-                          const status = sessionStatus(s, now);
-                          const end = s.completedAt ?? s.lastActivityAt;
-                          return (
-                            <tr key={s.id}>
-                              <td className="py-2 first-letter:uppercase">{formatDateTime(s.startedAt)}</td>
-                              <td className="py-2">
-                                {s.answers === 0 && !s.completedAt ? "—" : formatDuration(end - s.startedAt)}
-                              </td>
-                              <td className="py-2 text-right">{s.answers}</td>
-                              <td className="py-2 pl-6">
-                                <StatusPill label={status.label} tone={status.tone} />
-                              </td>
-                              <td className="py-2">{s.profileFilled ? "Oui" : "Non"}</td>
-                              <td className="py-2">{s.pdf ? "Téléchargé" : "—"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </CardContent>
-                </Card>
-              )}
+              <DailyBars days={days} pick={(d) => d.started} unit={["simulation", "simulations"]} title="Simulations par jour" />
 
-              <OverviewTable rows={interviewRows} totals={[last7, last30, last90]} />
-            </section>
+              <Details summary={`Voir le détail des simulations (${fr(sessions.length)})`}>
+                {sessions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune simulation sur cette période.</p>
+                ) : (
+                  <DataTable
+                    head={["Début", "Durée", "Réponses", "Statut", "Profil rempli", "PDF"]}
+                    rows={sessions.map((s) => {
+                      const status = sessionStatus(s, now);
+                      const end = s.completedAt ?? s.lastActivityAt;
+                      return {
+                        key: s.id,
+                        cells: [
+                          formatDateTime(s.startedAt),
+                          s.answers === 0 && !s.completedAt ? "—" : formatDuration(end - s.startedAt),
+                          String(s.answers),
+                          <Pill key="s" label={status.label} tone={status.tone} />,
+                          s.profileFilled ? "Oui" : "Non",
+                          s.pdf ? "Téléchargé" : "—",
+                        ],
+                      };
+                    })}
+                  />
+                )}
+              </Details>
+            </Panel>
 
-            {/* ------------------------------------------------ CV */}
-            <section id="cv" className="scroll-mt-6 space-y-6">
-              <SectionTitle
-                title="Analyser mon CV"
-                text="Une analyse = un CV déposé puis envoyé à l'IA. Aucun CV n'est conservé : seuls ces compteurs le sont."
-              />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Kpi
-                  value={fr(cvRequested(last30))}
-                  label={cvRequested(last30) > 1 ? "analyses lancées (30 j)" : "analyse lancée (30 j)"}
-                  hint={`dont ${plural(cvRequested(last7), "analyse")} ces 7 derniers jours`}
-                />
-                <Kpi
-                  value={pctText(last30.cv, cvRequested(last30))}
-                  label="ont abouti"
-                  hint={`${plural(last30.cv_failed, "analyse")} en échec sur ${fr(cvRequested(last30))}`}
-                />
-                <Kpi
-                  value={avgSeconds(last30.cv_duration_sec, last30.cv)}
-                  label="temps moyen d'analyse"
-                  hint="du dépôt du CV à l'affichage du résultat"
-                />
-                <Kpi
-                  value={pctText(last30.cv_to_interview, last30.cv)}
-                  label="ont enchaîné sur une prépa entretien"
-                  hint={`${plural(last30.cv_to_interview, "analyse")} sur ${fr(last30.cv)} suivie${last30.cv_to_interview > 1 ? "s" : ""} d'une simulation`}
+            {/* -------------------------------------------- Analyse de CV */}
+            <Panel>
+              <ToolHeader icon={<FileText className="size-5" />} title="Analyser mon CV" />
+
+              <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+                <div className="space-y-6">
+                  <Hero
+                    value={t.cv}
+                    unit={t.cv > 1 ? "CV analysés" : "CV analysé"}
+                    sentence={
+                      t.cv
+                        ? `${plural(t.cv_to_interview, "a ensuite préparé", "ont ensuite préparé")} un entretien (${pct(t.cv_to_interview, t.cv)} %).`
+                        : `Aucun CV analysé sur les ${period} derniers jours.`
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <MiniStat
+                      label="Temps d'analyse"
+                      value={t.cv ? formatSeconds((t.cv_duration_sec / t.cv) * 1000) : "—"}
+                      hint="en moyenne"
+                    />
+                    <MiniStat
+                      label="Échecs"
+                      value={fr(t.cv_failed)}
+                      hint={cvRequested ? `sur ${plural(cvRequested, "analyse lancée", "analyses lancées")}` : "aucune analyse lancée"}
+                      warn={t.cv_failed > 0 && pct(t.cv_failed, cvRequested) >= 20}
+                    />
+                  </div>
+                </div>
+
+                <Steps
+                  title="Que se passe-t-il après le dépôt du CV ?"
+                  total={cvRequested}
+                  steps={[
+                    { label: "Ont lancé une analyse", value: cvRequested },
+                    { label: "Ont obtenu leur analyse", value: t.cv },
+                    { label: "Ont indiqué leur diplôme", value: t.cv_degree },
+                    { label: "Ont enchaîné sur une prépa entretien", value: t.cv_to_interview },
+                  ]}
                 />
               </div>
 
-              {cvRuns.length > 0 && (
-                <Card className="shadow-soft">
-                  <CardHeader>
-                    <CardTitle className="text-base">Analyses individuelles</CardTitle>
-                    <CardDescription>
-                      Une ligne par analyse (les {SESSIONS_SHOWN} plus récentes, conservées 90 jours), sans
-                      aucun contenu du CV.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm">
-                      <thead className="text-left text-xs text-muted-foreground">
-                        <tr>
-                          <th className="py-2 font-medium">Date</th>
-                          <th className="py-2 font-medium">Temps d&apos;analyse</th>
-                          <th className="py-2 font-medium">Résultat</th>
-                          <th className="py-2 text-right font-medium">Points à améliorer</th>
-                          <th className="py-2 pl-6 font-medium">Diplôme indiqué</th>
-                          <th className="py-2 font-medium">Écart signalé</th>
-                          <th className="py-2 font-medium">Prépa entretien ensuite</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border tabular-nums">
-                        {cvRuns.map((r) => (
-                          <tr key={r.id}>
-                            <td className="py-2 first-letter:uppercase">{formatDateTime(r.at)}</td>
-                            <td className="py-2">{formatSeconds(r.durationMs)}</td>
-                            <td className="py-2">
-                              <StatusPill label={CV_STATUS[r.status].label} tone={CV_STATUS[r.status].tone} />
-                            </td>
-                            <td className="py-2 text-right">{r.status === "failed" ? "—" : r.improvements}</td>
-                            <td className="py-2 pl-6">{r.degreeGiven ? "Oui" : "Non"}</td>
-                            <td className="py-2">{r.mismatch ? "Oui" : "—"}</td>
-                            <td className="py-2">{r.toInterview ? "Oui" : "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </CardContent>
-                </Card>
-              )}
+              <DailyBars days={days} pick={(d) => d.cv} unit={["CV analysé", "CV analysés"]} title="CV analysés par jour" />
 
-              <OverviewTable rows={cvRows} totals={[last7, last30, last90]} />
-            </section>
-
-            {/* ------------------------------------------------ Jour par jour */}
-            <section id="jours" className="scroll-mt-6">
-              <Card className="shadow-soft">
-                <CardHeader>
-                  <CardTitle className="text-base">Jour par jour (30 derniers jours)</CardTitle>
-                  <CardDescription>Activité des deux outils, jour par jour.</CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="text-left text-xs text-muted-foreground">
-                      <tr>
-                        <th className="py-2 font-medium">Jour</th>
-                        <th className="py-2 text-right font-medium">Simulations démarrées</th>
-                        <th className="py-2 text-right font-medium">Avec réponse</th>
-                        <th className="py-2 text-right font-medium">Terminées</th>
-                        <th className="py-2 text-right font-medium">PDF téléchargés</th>
-                        <th className="py-2 text-right font-medium">CV analysés</th>
-                        <th className="py-2 text-right font-medium">CV en échec</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border tabular-nums">
-                      {days
-                        .slice(-30)
-                        .reverse()
-                        .map((d) => (
-                          <tr
-                            key={d.date}
-                            className={d.started || d.cv || d.cv_failed ? "" : "text-muted-foreground"}
-                          >
-                            <td className="py-2 first-letter:uppercase">{formatDay(d.date)}</td>
-                            <td className="py-2 text-right">{d.started}</td>
-                            <td className="py-2 text-right">{d.engaged}</td>
-                            <td className="py-2 text-right">{d.completed}</td>
-                            <td className="py-2 text-right">{d.pdf}</td>
-                            <td className="py-2 text-right">{d.cv}</td>
-                            <td className="py-2 text-right">{d.cv_failed}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </CardContent>
-              </Card>
-            </section>
+              <Details summary={`Voir le détail des analyses (${fr(cvRuns.length)})`}>
+                {cvRuns.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune analyse détaillée sur cette période.</p>
+                ) : (
+                  <DataTable
+                    head={["Date", "Temps d'analyse", "Résultat", "Points à améliorer", "Diplôme indiqué", "Écart signalé", "Prépa entretien ensuite"]}
+                    rows={cvRuns.map((r) => ({
+                      key: r.id,
+                      cells: [
+                        formatDateTime(r.at),
+                        formatSeconds(r.durationMs),
+                        <Pill key="s" label={CV_STATUS[r.status].label} tone={CV_STATUS[r.status].tone} />,
+                        r.status === "failed" ? "—" : String(r.improvements),
+                        r.degreeGiven ? "Oui" : "Non",
+                        r.mismatch ? "Oui" : "—",
+                        r.toInterview ? "Oui" : "—",
+                      ],
+                    }))}
+                  />
+                )}
+              </Details>
+            </Panel>
           </>
         )}
       </main>
@@ -424,70 +294,183 @@ export default async function StatsPage() {
   );
 }
 
-type Row = { label: string; help: string; value: (t: Totals) => string };
+// ---------------------------------------------------------------- Pièces
 
-function SectionTitle({ title, text }: { title: string; text: string }) {
+function Panel({ children }: { children: React.ReactNode }) {
+  return <section className="space-y-8 rounded-2xl border border-border bg-card p-5 sm:p-8">{children}</section>;
+}
+
+function ToolHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="space-y-1 border-b border-border pb-3">
+    <div className="flex items-center gap-3">
+      <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">{icon}</span>
       <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-      <p className="text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
 
-function StatusPill({ label, tone }: { label: string; tone: Status["tone"] }) {
-  return <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONE_CLASS[tone])}>{label}</span>;
-}
-
-function OverviewTable({ rows, totals }: { rows: Row[]; totals: [Totals, Totals, Totals] }) {
+// Le chiffre principal de l'outil, avec une phrase qui le traduit en clair.
+function Hero({ value, unit, sentence }: { value: number; unit: string; sentence: string }) {
   return (
-    <Card className="shadow-soft">
-      <CardHeader>
-        <CardTitle className="text-base">Vue globale</CardTitle>
-        <CardDescription>
-          Les mêmes indicateurs sur 7, 30 et 90 jours, avec à chaque fois le nombre réel et le pourcentage
-          correspondant.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="py-2 font-medium">Indicateur</th>
-              <th className="py-2 text-right font-medium">7 derniers jours</th>
-              <th className="py-2 text-right font-medium">30 derniers jours</th>
-              <th className="py-2 text-right font-medium">90 derniers jours</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border tabular-nums">
-            {rows.map((row) => (
-              <tr key={row.label} className="align-top">
-                <td className="py-2.5 pr-4">
-                  <span className="font-medium">{row.label}</span>
-                  <span className="block text-xs text-muted-foreground">{row.help}</span>
-                </td>
-                {totals.map((t, i) => (
-                  <td key={i} className="py-2.5 text-right whitespace-nowrap">
-                    {row.value(t)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
+    <div className="space-y-2">
+      <p className="flex items-baseline gap-3">
+        <span className="text-6xl font-semibold tracking-tight">{fr(value)}</span>
+        <span className="text-lg font-medium text-muted-foreground">{unit}</span>
+      </p>
+      <p className="text-base">{sentence}</p>
+    </div>
   );
 }
 
-function Kpi({ value, label, hint }: { value: string; label: string; hint: string }) {
+function MiniStat({ label, value, hint, warn = false }: { label: string; value: string; hint: string; warn?: boolean }) {
   return (
-    <Card className="shadow-soft">
-      <CardContent className="space-y-1 py-5">
-        <p className="text-3xl font-semibold tabular-nums">{value}</p>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
+    <div className={cn("rounded-xl border p-4", warn ? "border-ecm-orange/50 bg-ecm-orange/[0.06]" : "border-border")}>
+      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        {warn && <TriangleAlert className="size-3.5 text-ecm-orange" aria-hidden />}
+        {label}
+        {warn && <span className="sr-only"> (à surveiller)</span>}
+      </p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+      {warn && <p className="mt-1 text-xs font-medium text-ecm-orange">À surveiller</p>}
+    </div>
+  );
+}
+
+// Parcours étape par étape : une barre par étape, toutes rapportées au
+// nombre de départ, pour voir d'un coup d'œil où les étudiant·e·s décrochent.
+function Steps({ title, total, steps }: { title: string; total: number; steps: { label: string; value: number }[] }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-semibold">{title}</p>
+      <ul className="space-y-4">
+        {steps.map((step) => {
+          const share = pct(step.value, total);
+          return (
+            <li key={step.label} className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span>{step.label}</span>
+                <span className="shrink-0 font-semibold tabular-nums">
+                  {fr(step.value)}
+                  {total > 0 && <span className="ml-1.5 font-normal text-muted-foreground">{share} %</span>}
+                </span>
+              </div>
+              <div
+                className="h-2.5 w-full overflow-hidden rounded-full bg-primary/15"
+                role="img"
+                aria-label={`${step.label} : ${fr(step.value)}${total ? ` (${share} %)` : ""}`}
+              >
+                <div className="h-full rounded-full bg-primary" style={{ width: `${total ? share : 0}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// Activité par jour : une colonne par jour (une seule série, une couleur),
+// le chiffre exact au survol ou au focus clavier.
+function DailyBars({
+  days,
+  pick,
+  unit,
+  title,
+}: {
+  days: DayStats[];
+  pick: (d: DayStats) => number;
+  unit: [string, string];
+  title: string;
+}) {
+  const values = days.map(pick);
+  const max = Math.max(1, ...values);
+  const totalDays = days.length;
+  const labelIdx = new Set([0, Math.floor((totalDays - 1) / 2), totalDays - 1]);
+
+  return (
+    <figure className="space-y-3">
+      <figcaption className="flex items-baseline justify-between text-sm">
+        <span className="font-semibold">{title}</span>
+        <span className="text-xs text-muted-foreground">Maximum : {fr(Math.max(...values, 0))} sur un jour</span>
+      </figcaption>
+      <div className="relative">
+        <div className="flex h-32 items-end gap-[2px] border-b border-border">
+          {days.map((d, i) => {
+            const v = values[i];
+            const label = `${formatDay(d.date)} : ${v} ${v > 1 ? unit[1] : unit[0]}`;
+            return (
+              <div
+                key={d.date}
+                tabIndex={0}
+                aria-label={label}
+                className="group relative flex h-full flex-1 items-end justify-center outline-none"
+              >
+                <div
+                  className={cn(
+                    "w-full max-w-6 rounded-t-[4px] transition-colors",
+                    v ? "bg-primary group-hover:bg-primary/80 group-focus-visible:bg-primary/80" : "bg-transparent"
+                  )}
+                  style={{ height: v ? `${Math.max((v / max) * 100, 4)}%` : 0 }}
+                />
+                <span className="pointer-events-none absolute bottom-full z-10 mb-1 hidden rounded-md bg-foreground px-2 py-1 text-xs whitespace-nowrap text-background group-hover:block group-focus-visible:block first-letter:uppercase">
+                  {label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-1.5 flex text-xs text-muted-foreground">
+          {days.map((d, i) => (
+            <span key={d.date} className="flex-1 text-center whitespace-nowrap">
+              {labelIdx.has(i) ? formatShortDay(d.date) : ""}
+            </span>
+          ))}
+        </div>
+      </div>
+    </figure>
+  );
+}
+
+function Details({ summary, children }: { summary: string; children: React.ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium hover:bg-accent/40">
+        {summary}
+        <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="overflow-x-auto border-t border-border px-4 py-3">{children}</div>
+    </details>
+  );
+}
+
+function Pill({ label, tone }: { label: string; tone: Tone }) {
+  return <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", TONE_CLASS[tone])}>{label}</span>;
+}
+
+function DataTable({ head, rows }: { head: string[]; rows: { key: string; cells: React.ReactNode[] }[] }) {
+  return (
+    <table className="w-full min-w-[680px] text-sm">
+      <thead className="text-left text-xs text-muted-foreground">
+        <tr>
+          {head.map((h) => (
+            <th key={h} className="py-2 pr-4 font-medium">
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border tabular-nums">
+        {rows.map((row) => (
+          <tr key={row.key}>
+            {row.cells.map((cell, i) => (
+              <td key={i} className={cn("py-2 pr-4", i === 0 && "first-letter:uppercase")}>
+                {cell}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
