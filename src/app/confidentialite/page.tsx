@@ -5,15 +5,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = { title: "Confidentialité" };
 
-// Points à faire valider par l'école / le DPO : surlignés à l'écran.
-function Placeholder({ children }: { children: React.ReactNode }) {
-  return (
-    <mark className="rounded bg-amber-200/60 px-1 py-0.5 font-medium text-amber-950 dark:bg-amber-400/20 dark:text-amber-200">
-      {children}
-    </mark>
-  );
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
@@ -35,7 +26,7 @@ export default function PrivacyPage() {
         <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
           <h1 className="text-3xl font-semibold tracking-tight">Confidentialité</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Dernière mise à jour : <Placeholder>[À COMPLÉTER — date de validation par le DPO]</Placeholder>
+            Dernière mise à jour : 17 novembre 2026
           </p>
 
           <div className="mt-8 rounded-xl border-2 border-emerald-600/30 bg-emerald-600/[0.06] p-5 text-sm leading-relaxed">
@@ -61,10 +52,10 @@ export default function PrivacyPage() {
                 Alfred de Vigny, 25000 Besançon. Il est réservé à l&apos;accompagnement des étudiant·e·s de
                 l&apos;ECM dans leur recherche de stage ou d&apos;alternance. Pour toute question relative à vos
                 données personnelles :{" "}
-                <a href="mailto:celharrami@ecm-france.fr" className="text-primary underline underline-offset-4">
-                  celharrami@ecm-france.fr
-                </a>{" "}
-                <Placeholder>[À CONFIRMER — ou adresse du DPO / référent RGPD]</Placeholder>.
+                <a href="mailto:mrangeard@ecm-france.fr" className="text-primary underline underline-offset-4">
+                  mrangeard@ecm-france.fr
+                </a>
+                .
               </p>
             </Section>
 
@@ -133,8 +124,8 @@ export default function PrivacyPage() {
                 <li>
                   les <strong className="text-foreground">journaux techniques</strong> de l&apos;hébergeur
                   (Vercel), qui ne contiennent aucun contenu de vos échanges ni de votre CV, mais peuvent contenir
-                  des données de connexion comme l&apos;adresse IP, pendant une durée limitée{" "}
-                  <Placeholder>[À CONFIRMER — durée de conservation des journaux Vercel]</Placeholder>.
+                  des données de connexion comme l&apos;adresse IP, pendant une courte durée (quelques jours au
+                  maximum) avant suppression automatique.
                 </li>
               </ul>
             </Section>
@@ -145,14 +136,13 @@ export default function PrivacyPage() {
                   <strong className="text-foreground">Anthropic</strong> (fournisseur du modèle d&apos;intelligence
                   artificielle Claude, États-Unis) reçoit vos réponses, les informations que vous saisissez et
                   votre CV, uniquement pour générer les réponses du coach, le compte rendu et l&apos;analyse du CV.
-                  Anthropic n&apos;utilise pas ces données pour entraîner ses modèles et ne les conserve que
-                  temporairement, selon ses conditions{" "}
-                  <Placeholder>[À CONFIRMER — durée de conservation applicable au compte API de l&apos;ECM]</Placeholder>.
+                  Dans le cadre de son offre professionnelle (API) utilisée par l&apos;ECM, Anthropic n&apos;utilise
+                  pas ces données pour entraîner ses modèles et les supprime automatiquement dans un délai de 30
+                  jours au plus, sauf obligation légale ou violation de ses règles d&apos;utilisation.
                 </li>
                 <li>
                   <strong className="text-foreground">Vercel</strong> héberge le site : vos données transitent par
-                  ses serveurs le temps du traitement{" "}
-                  <Placeholder>[À CONFIRMER — région d&apos;hébergement des fonctions]</Placeholder>.
+                  ses serveurs, situés à Paris (France), le temps du traitement, sans y être enregistrées.
                 </li>
                 <li>
                   <strong className="text-foreground">Upstash</strong> héberge les statistiques anonymes (aucune
@@ -173,23 +163,18 @@ export default function PrivacyPage() {
             <Section title="5. Transfert hors de l'Union européenne">
               <p>
                 Anthropic étant situé aux États-Unis, l&apos;utilisation de l&apos;outil implique un transfert de
-                données hors de l&apos;Union européenne, encadré par{" "}
-                <Placeholder>
-                  [À CONFIRMER — accord de traitement des données (DPA) d&apos;Anthropic et clauses contractuelles
-                  types de la Commission européenne, acceptés par l&apos;ECM]
-                </Placeholder>
-                .
+                données hors de l&apos;Union européenne, encadré par l&apos;accord de traitement des données (DPA)
+                d&apos;Anthropic, intégré à ses conditions commerciales, qui inclut les clauses contractuelles
+                types adoptées par la Commission européenne.
               </p>
             </Section>
 
             <Section title="6. Base légale">
               <p>
-                Le traitement repose sur{" "}
-                <Placeholder>
-                  [À CONFIRMER — ex. l&apos;intérêt légitime de l&apos;ECM à accompagner ses étudiant·e·s dans leur
-                  insertion professionnelle]
-                </Placeholder>
-                . L&apos;utilisation de l&apos;outil est entièrement facultative.
+                Le traitement repose sur l&apos;intérêt légitime de l&apos;ECM à accompagner ses étudiant·e·s
+                dans leur recherche de stage ou d&apos;alternance et leur insertion professionnelle (article 6.1.f
+                du RGPD). L&apos;utilisation de l&apos;outil est entièrement facultative, et vous restez libre de
+                ne saisir que les informations que vous souhaitez.
               </p>
             </Section>
 
@@ -199,8 +184,8 @@ export default function PrivacyPage() {
                 Libertés, vous disposez d&apos;un droit d&apos;accès, de rectification, d&apos;effacement, de
                 limitation et d&apos;opposition. L&apos;ECM ne conservant aucune donnée vous concernant, elle ne
                 pourra généralement pas vous en communiquer ; vous pouvez néanmoins poser toute question à{" "}
-                <a href="mailto:celharrami@ecm-france.fr" className="text-primary underline underline-offset-4">
-                  celharrami@ecm-france.fr
+                <a href="mailto:mrangeard@ecm-france.fr" className="text-primary underline underline-offset-4">
+                  mrangeard@ecm-france.fr
                 </a>
                 .
               </p>
