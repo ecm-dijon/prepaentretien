@@ -34,11 +34,6 @@ const extractedCertificationSchema = z.object({
     .optional(),
 });
 
-const cvFeedbackSchema = z.object({
-  strengths: z.array(z.string()).optional(),
-  improvements: z.array(z.string()).optional(),
-});
-
 export const cvExtractionSchema = z.object({
   headline: z.string().optional(),
   bio: z.string().optional(),
@@ -48,13 +43,11 @@ export const cvExtractionSchema = z.object({
   skills: z.array(extractedSkillSchema).optional(),
   experiences: z.array(extractedExperienceSchema).optional(),
   certifications: z.array(extractedCertificationSchema).optional(),
-  feedback: cvFeedbackSchema.optional(),
   date_of_birth: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   has_driving_license: z.boolean().optional(),
-  profile_mismatch: z.string().optional(),
 });
 
 export type CvExtraction = z.infer<typeof cvExtractionSchema>;
@@ -146,25 +139,6 @@ const CV_EXTRACTION_TOOL = {
           required: ["name", "issuer"],
         },
       },
-      feedback: {
-        type: "object",
-        description:
-          "Avis sur la qualité et la conformité du CV par rapport au gabarit CV type de l'ECM. Purement informatif pour l'étudiant, ne sert pas à remplir le profil. Rédigé EXCLUSIVEMENT en français, sans aucun mot dans une autre langue.",
-        properties: {
-          strengths: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "2 à 5 points forts concrets du CV (présentation, structure, mise en avant de compétences ou d'expériences pertinentes...).",
-          },
-          improvements: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "2 à 7 points à améliorer, en couvrant systématiquement (quand pertinent) : (1) le titre/accroche — doit être \"Recherche d'alternance dans le cadre du [diplôme]\" ou \"Recherche de stage dans le cadre du [diplôme]\", bien visible sous le nom, jamais absent ou noyé ; propose la formulation exacte si elle manque ou est mal positionnée ; (2) la photo si présente — visage net et bien visible, cadrage et éclairage corrects, tenue/contexte neutres ; dis-le clairement si elle est floue, sombre, trop éloignée, ou visiblement une photo de loisir ; (3) toute incohérence entre le projet visé (accroche/titre) et les compétences ou logiciels listés (ex : vise la communication mais ne cite aucun logiciel de création) ; (4) sections manquantes/incomplètes par rapport au gabarit ECM, qualité générale (formulations, fautes, expériences mal valorisées). Pour CHAQUE point, explique en une phrase pourquoi ça compte concrètement pour la recherche de stage/alternance (impact pour un recruteur qui lit le CV en quelques secondes) — n'invoque jamais \"c'est attendu dans le gabarit de l'école\" comme seule justification, la vraie raison est toujours pratique/métier. Phrases courtes, concrètes, bienveillantes, adressées directement à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement).",
-          },
-        },
-      },
       date_of_birth: {
         type: "string",
         description: "Date de naissance si indiquée sur le CV (souvent dans le bloc \"Informations\"), format YYYY-MM-DD.",
@@ -172,6 +146,48 @@ const CV_EXTRACTION_TOOL = {
       has_driving_license: {
         type: "boolean",
         description: "true si le CV mentionne le permis B (ou \"permis de conduire\") comme obtenu, absent si non mentionné.",
+      },
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Avis sur le CV (repris de la Plateforme des Compétences). Appel séparé de
+// l'extraction, lancé
+// en parallèle : chacun fait moitié moins de travail, l'attente totale est
+// divisée d'autant.
+// ---------------------------------------------------------------------------
+
+export const cvReviewSchema = z.object({
+  strengths: z.array(z.string()).optional(),
+  improvements: z.array(z.string()).optional(),
+  profile_mismatch: z.string().optional(),
+});
+
+export type CvReview = {
+  strengths: string[];
+  improvements: string[];
+  profile_mismatch: string | null;
+};
+
+const CV_REVIEW_TOOL = {
+  name: "record_cv_review",
+  description:
+    "Enregistre l'avis sur la qualité et la conformité du CV par rapport au gabarit CV type de l'ECM. Rédigé EXCLUSIVEMENT en français, sans aucun mot dans une autre langue.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      strengths: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "2 à 5 points forts concrets du CV (présentation, structure, mise en avant de compétences ou d'expériences pertinentes...).",
+      },
+      improvements: {
+        type: "array",
+        description:
+          "2 à 7 points à améliorer, en couvrant systématiquement (quand pertinent) : (1) le titre/accroche — doit être \"Recherche d'alternance dans le cadre du [diplôme]\" ou \"Recherche de stage dans le cadre du [diplôme]\", bien visible sous le nom, jamais absent ou noyé ; propose la formulation exacte si elle manque ou est mal positionnée ; (2) la photo si présente — visage net et bien visible, cadrage et éclairage corrects, tenue/contexte neutres ; dis-le clairement si elle est floue, sombre, trop éloignée, ou visiblement une photo de loisir ; (3) toute incohérence entre le projet visé (accroche/titre) et les compétences ou logiciels listés (ex : vise la communication mais ne cite aucun logiciel de création) ; (4) sections manquantes/incomplètes par rapport au gabarit ECM, qualité générale (formulations, fautes, expériences mal valorisées). Pour CHAQUE point, explique en une phrase pourquoi ça compte concrètement pour la recherche de stage/alternance (impact pour un recruteur qui lit le CV en quelques secondes) — n'invoque jamais \"c'est attendu dans le gabarit de l'école\" comme seule justification, la vraie raison est toujours pratique/métier. Phrases courtes, concrètes, bienveillantes, adressées directement à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement).",
+        items: { type: "string" },
       },
       profile_mismatch: {
         type: "string",
@@ -208,84 +224,64 @@ function buildKnownProfileContextText(context?: CvKnownProfileContext): string |
   );
 }
 
-export async function extractCvData(
-  pdfBase64: string,
-  context?: CvKnownProfileContext
-): Promise<CvExtraction | null> {
+const LANGUAGE_RULES =
+  "IMPORTANT — Rédige TOUJOURS en français, sans aucune exception, tout le texte que tu génères toi-même : jamais un mot ni une phrase dans une autre langue, quelle qu'elle soit. Seules les données recopiées telles quelles depuis le CV (noms propres, intitulés de poste ou de diplôme, noms d'entreprise) peuvent rester dans leur langue d'origine si le CV lui-même les contient ainsi. N'utilise jamais de mise en forme Markdown (pas d'astérisques **, de dièses #...) : texte brut uniquement, l'interface ne l'affiche pas en gras/italique.\n\n";
+
+const TEMPLATE_DESCRIPTION =
+  "Si un CV de référence ECM t'est fourni en premier document (avant le CV à analyser), utilise-le comme repère structurel — c'est un gabarit bien construit : bloc \"Informations\" à gauche (contact, mobilité, âge, permis), \"Compétences\", \"Logiciels\", \"Langues\", \"Centres d'intérêt\" (à ignorer, non stocké), une photo, et à droite un titre du type \"Recherche d'alternance dans le cadre de ma [diplôme]\" ou \"Recherche d'un stage ... dans le cadre de ma [diplôme]\" juste sous le nom, une courte accroche, \"Expériences professionnelles\", \"Formations\". Le CV réel à analyser peut différer de ce gabarit — adapte-toi au document effectivement fourni, ne pénalise pas une mise en page différente en soi, seulement les vrais manques de fond.\n\n";
+
+// Appel d'outil non forcé ("auto" : forcer l'outil est incompatible avec la
+// réflexion du modèle, activée par défaut), délai strict sans relances
+// automatiques du SDK, une relance si le modèle n'a pas appelé l'outil et
+// qu'il reste du temps. Vercel coupe la fonction à 60 s.
+async function callTool(
+  request: Anthropic.MessageCreateParamsNonStreaming,
+  toolName: string,
+  startedAt: number
+): Promise<unknown> {
   const client = getAnthropicClient();
-
-  const contextText = buildKnownProfileContextText(context);
-  const referenceCvBase64 = REFERENCE_CV_TEMPLATE_BASE64;
-
-  const request: Anthropic.MessageCreateParamsNonStreaming = {
-    model: CLAUDE_MODEL,
-    // La réflexion du modèle compte dans cette limite.
-    max_tokens: 8000,
-    // Effort « low » : l'analyse est surtout de la lecture / extraction. Avec
-    // l'effort par défaut (« high »), le modèle réfléchissait longuement sur
-    // les deux PDF et dépassait la minute — l'analyse semblait ne jamais finir.
-    output_config: { effort: "low" },
-    system:
-      "IMPORTANT — Rédige TOUJOURS en français, sans aucune exception, tout le texte que tu génères toi-même (`bio`, `feedback.strengths`, `feedback.improvements`, `profile_mismatch`...) : jamais un mot ni une phrase dans une autre langue, quelle qu'elle soit. Seules les données recopiées telles quelles depuis le CV (noms propres, intitulés de poste ou de diplôme, noms d'entreprise) peuvent rester dans leur langue d'origine si le CV lui-même les contient ainsi. N'utilise jamais de mise en forme Markdown (pas d'astérisques **, de dièses #...) : texte brut uniquement, l'interface ne l'affiche pas en gras/italique.\n\n" +
-      "Tu analyses le CV (PDF) d'un·e étudiant·e de l'ECM (école de commerce et management) et tu en extrais des données structurées via l'outil fourni.\n\n" +
-      "Si un CV de référence ECM t'est fourni en premier document (avant le CV à analyser), utilise-le comme repère structurel — c'est un gabarit bien construit : bloc \"Informations\" à gauche (contact, mobilité, âge, permis), \"Compétences\", \"Logiciels\", \"Langues\", \"Centres d'intérêt\" (à ignorer, non stocké), une photo, et à droite un titre du type \"Recherche d'alternance dans le cadre de ma [diplôme]\" ou \"Recherche d'un stage ... dans le cadre de ma [diplôme]\" juste sous le nom, une courte accroche, \"Expériences professionnelles\", \"Formations\". Le CV réel à analyser peut différer de ce gabarit — adapte-toi au document effectivement fourni, ne pénalise pas une mise en page différente en soi, seulement les vrais manques de fond.\n\n" +
-      "N'oublie jamais de remplir `certifications` à partir de la section \"Formations\" du CV (Bac, Licence, Bachelor, Master, titre professionnel...) — voir la description détaillée de ce champ dans l'outil. Chaque diplôme listé dans cette section doit devenir une entrée, même sans certification professionnelle au sens strict.\n\n" +
-      "En plus de l'extraction, remplis le champ `feedback` (voir la description détaillée du champ `improvements` dans l'outil pour ce qu'il faut systématiquement vérifier : titre/accroche au bon format, qualité de la photo, cohérence entre projet visé et compétences/logiciels, sections manquantes). Le gabarit ECM est une grille de lecture interne — jamais la raison donnée à l'étudiant·e : pour chaque point d'amélioration, explique la vraie raison pratique (impact pour un recruteur, pour décrocher un entretien), jamais \"parce que c'est attendu par l'école\". Si un contexte sur ce que l'étudiant·e a déjà déclaré t'est fourni dans le message utilisateur, compare-le au CV et signale toute incohérence nette. Reste factuel, ne juge que ce que tu observes réellement dans le document. Tu DOIS appeler l'outil record_cv_data, une seule fois : c'est ta seule façon de répondre.",
-    tools: [CV_EXTRACTION_TOOL],
-    // "auto" et non un appel d'outil forcé : forcer l'outil est incompatible
-    // avec la réflexion du modèle, activée par défaut (l'appel échouait).
-    // L'instruction ci-dessus demande l'outil ; on réessaie une fois sinon.
-    tool_choice: { type: "auto" },
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...(referenceCvBase64
-            ? [
-                {
-                  type: "document" as const,
-                  source: {
-                    type: "base64" as const,
-                    media_type: "application/pdf" as const,
-                    data: referenceCvBase64,
-                  },
-                },
-                {
-                  type: "text" as const,
-                  text: "Ceci est le CV de référence de l'ECM (gabarit bien structuré) — sers-t'en UNIQUEMENT pour comparer la structure et la formulation du CV suivant. Ce n'est pas le document à analyser ni à extraire.",
-                },
-              ]
-            : []),
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-          },
-          { type: "text", text: "Voici le CV à analyser (celui-ci, pas le gabarit de référence)." },
-          ...(contextText ? [{ type: "text" as const, text: contextText }] : []),
-        ],
-      },
-    ],
-  };
-
-  let toolInput: unknown = null;
-  const startedAt = Date.now();
-  // Une relance seulement s'il reste assez de temps (Vercel coupe à 60 s).
-  for (let attempt = 0; attempt < 2 && toolInput === null; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const elapsed = Date.now() - startedAt;
     if (attempt > 0 && elapsed > 20_000) break;
-    // Délai strict, sans relance automatique du SDK (par défaut : 10 min et
-    // 2 relances) : mieux vaut une erreur claire qu'une attente sans fin.
-    const message = await client.messages.create(request, {
-      timeout: 52_000 - elapsed,
-      maxRetries: 0,
-    });
-    const toolUse = message.content.find((block) => block.type === "tool_use");
-    if (toolUse && toolUse.type === "tool_use") toolInput = toolUse.input;
-    else console.error("[cv-analysis] l'outil n'a pas été appelé. stop_reason:", message.stop_reason);
+    const message = await client.messages.create(request, { timeout: 52_000 - elapsed, maxRetries: 0 });
+    const toolUse = message.content.find((block) => block.type === "tool_use" && block.name === toolName);
+    if (toolUse && toolUse.type === "tool_use") return toolUse.input;
+    console.error(`[cv-analysis] ${toolName} non appelé. stop_reason:`, message.stop_reason);
   }
-  if (toolInput === null) return null;
+  return null;
+}
 
-  const parsed = cvExtractionSchema.safeParse(toolInput);
+// Extraction des informations du CV (accroche, expériences, formations...).
+export async function extractCvData(pdfBase64: string, startedAt = Date.now()): Promise<CvExtraction | null> {
+  const input = await callTool(
+    {
+      model: CLAUDE_MODEL,
+      max_tokens: 6000,
+      // Lecture / extraction : peu de réflexion nécessaire, et bien plus rapide.
+      output_config: { effort: "low" },
+      system:
+        LANGUAGE_RULES +
+        "Tu analyses le CV (PDF) d'un·e étudiant·e de l'ECM (école de commerce et management) et tu en extrais des données structurées via l'outil fourni.\n\n" +
+        "N'oublie jamais de remplir `certifications` à partir de la section \"Formations\" du CV (Bac, Licence, Bachelor, Master, titre professionnel...) — voir la description détaillée de ce champ dans l'outil. Chaque diplôme listé dans cette section doit devenir une entrée, même sans certification professionnelle au sens strict.\n\n" +
+        "Reste factuel, n'extrais que ce que tu observes réellement dans le document. Tu DOIS appeler l'outil record_cv_data, une seule fois : c'est ta seule façon de répondre.",
+      tools: [CV_EXTRACTION_TOOL],
+      tool_choice: { type: "auto" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
+            { type: "text", text: "Voici le CV à analyser." },
+          ],
+        },
+      ],
+    },
+    "record_cv_data",
+    startedAt
+  );
+  if (input === null) return null;
+
+  const parsed = cvExtractionSchema.safeParse(input);
   if (!parsed.success) {
     // Jamais le contenu du CV dans les logs : rien n'est conservé.
     console.error(
@@ -294,21 +290,69 @@ export async function extractCvData(
     );
     return null;
   }
-
-  // Filet de sécurité : même avec des consignes strictes de rédaction en
-  // français, il arrive qu'un fragment dans une autre écriture se glisse
-  // dans le texte que le modèle rédige lui-même — jamais dans les champs
-  // recopiés tel quel depuis le CV (noms, intitulés...).
-  const sanitized: CvExtraction = {
+  return {
     ...parsed.data,
     headline: sanitizeAiText(parsed.data.headline),
     bio: sanitizeAiText(parsed.data.bio),
-    profile_mismatch: sanitizeAiText(parsed.data.profile_mismatch),
-    feedback: parsed.data.feedback && {
-      strengths: sanitizeAiTextArray(parsed.data.feedback.strengths),
-      improvements: sanitizeAiTextArray(parsed.data.feedback.improvements),
-    },
   };
+}
 
-  return sanitized;
+// Avis sur le CV, comparé au CV type ECM (même consignes que la plateforme).
+export async function reviewCv(
+  pdfBase64: string,
+  context?: CvKnownProfileContext,
+  startedAt = Date.now()
+): Promise<CvReview | null> {
+  const contextText = buildKnownProfileContextText(context);
+
+  const input = await callTool(
+    {
+      model: CLAUDE_MODEL,
+      max_tokens: 6000,
+      output_config: { effort: "low" },
+      system:
+        LANGUAGE_RULES +
+        "Tu donnes ton avis sur le CV d'un·e étudiant·e de l'ECM (école de commerce et management) via l'outil fourni.\n\n" +
+        TEMPLATE_DESCRIPTION +
+        "Remplis `strengths` et `improvements` (voir la description détaillée du champ `improvements` dans l'outil pour ce qu'il faut systématiquement vérifier : titre/accroche au bon format, qualité de la photo, cohérence entre projet visé et compétences/logiciels, sections manquantes). Le gabarit ECM est une grille de lecture interne — jamais la raison donnée à l'étudiant·e : pour chaque point d'amélioration, explique la vraie raison pratique (impact pour un recruteur, pour décrocher un entretien), jamais \"parce que c'est attendu par l'école\". " +
+        "Si un contexte sur la formation de l'étudiant·e t'est fourni dans le message utilisateur, compare-le au CV et signale toute incohérence nette. Reste factuel, ne juge que ce que tu observes réellement dans le document. Tu DOIS appeler l'outil record_cv_review, une seule fois : c'est ta seule façon de répondre.",
+      tools: [CV_REVIEW_TOOL],
+      tool_choice: { type: "auto" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: REFERENCE_CV_TEMPLATE_BASE64 },
+            },
+            {
+              type: "text",
+              text: "Ceci est le CV de référence de l'ECM (gabarit bien structuré) — sers-t'en UNIQUEMENT pour comparer la structure et la formulation du CV suivant. Ce n'est pas le document à analyser.",
+            },
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
+            { type: "text", text: "Voici le CV à analyser (celui-ci, pas le gabarit de référence)." },
+            ...(contextText ? [{ type: "text" as const, text: contextText }] : []),
+          ],
+        },
+      ],
+    },
+    "record_cv_review",
+    startedAt
+  );
+  if (input === null) return null;
+
+  const parsed = cvReviewSchema.safeParse(input);
+  if (!parsed.success) {
+    console.error(
+      "[cv-analysis] avis invalide, champs :",
+      Object.keys(parsed.error.flatten().fieldErrors).join(", ")
+    );
+    return null;
+  }
+  return {
+    strengths: sanitizeAiTextArray(parsed.data.strengths) ?? [],
+    improvements: sanitizeAiTextArray(parsed.data.improvements) ?? [],
+    profile_mismatch: sanitizeAiText(parsed.data.profile_mismatch) || null,
+  };
 }

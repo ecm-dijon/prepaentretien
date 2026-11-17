@@ -12,7 +12,6 @@ import {
   TriangleAlert,
   Upload,
 } from "lucide-react";
-import Image from "next/image";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { analyzeCvAction } from "@/lib/actions/cv-analysis";
-import type { CvExtraction } from "@/lib/ai/cv-analysis";
+import type { CvExtraction, CvReview } from "@/lib/ai/cv-analysis";
 import { DEGREE_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/lib/degree-options";
 import { cn } from "@/lib/utils";
 import { TimeoutError, withTimeout } from "@/lib/with-timeout";
@@ -61,7 +60,12 @@ function formatMonth(iso?: string | null) {
   return d.toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
 }
 
-type Result = { extraction: CvExtraction; previewDataUrl: string | null; fileName: string };
+type Result = {
+  extraction: CvExtraction | null;
+  review: CvReview | null;
+  previewDataUrl: string | null;
+  fileName: string;
+};
 
 // Analyseur de CV — même analyse que la Plateforme des Compétences (CV type
 // ECM comme référence), mais rien n'est stocké : le CV est envoyé, analysé,
@@ -98,7 +102,12 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
       formData.append("year", year);
       const res = await withTimeout(analyzeCvAction(formData), 75_000);
       if (res.success) {
-        setResult({ extraction: res.extraction, previewDataUrl: res.previewDataUrl, fileName: file.name });
+        setResult({
+          extraction: res.extraction,
+          review: res.review,
+          previewDataUrl: res.previewDataUrl,
+          fileName: file.name,
+        });
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         toast.error(res.error);
@@ -122,7 +131,7 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
 
   function handlePrepare() {
     if (!result) return;
-    const x = result.extraction;
+    const x = result.extraction ?? {};
     onPrepareInterview({
       headline: x.headline ?? "",
       degree,
@@ -136,7 +145,7 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
 
   if (result) {
     return (
-      <PageShell width="max-w-5xl">
+      <PageShell width="max-w-6xl">
         <CvResult
           result={result}
           onReset={handleReset}
@@ -265,11 +274,9 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
 
 function CvResult({ result, onReset, onPrepare }: { result: Result; onReset: () => void; onPrepare: () => void }) {
   const x = result.extraction;
-  const strengths = x.feedback?.strengths ?? [];
-  const improvements = x.feedback?.improvements ?? [];
-  const skills = x.skills ?? [];
-  const experiences = x.experiences ?? [];
-  const certifications = x.certifications ?? [];
+  const review = result.review;
+  const strengths = review?.strengths ?? [];
+  const improvements = review?.improvements ?? [];
 
   return (
     <div className="space-y-6">
@@ -293,86 +300,91 @@ function CvResult({ result, onReset, onPrepare }: { result: Result; onReset: () 
         Rien n&apos;est conservé : cette analyse disparaîtra quand vous quitterez la page.
       </p>
 
-      {x.profile_mismatch && (
+      {review?.profile_mismatch && (
         <Card className="border-ecm-orange/40 bg-ecm-orange/[0.05] shadow-soft">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <TriangleAlert className="size-4 text-ecm-orange" /> Ce CV correspond-il bien à votre formation ?
             </CardTitle>
-            <CardDescription className="text-foreground/80">{x.profile_mismatch}</CardDescription>
+            <CardDescription className="text-foreground/80">{review.profile_mismatch}</CardDescription>
           </CardHeader>
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr] lg:items-start">
-        <Card className="shadow-soft">
-          <CardHeader>
-            <CardTitle>Avis sur votre CV</CardTitle>
-            <CardDescription>
-              Avis de l&apos;IA à partir du CV type de l&apos;ECM : à prendre comme des pistes, pas comme une
-              vérité absolue.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {strengths.length > 0 && (
+      <Card className="shadow-soft">
+        <CardHeader>
+          <CardTitle>Avis sur votre CV</CardTitle>
+          <CardDescription>
+            Avis de l&apos;IA à partir du CV type de l&apos;ECM : à prendre comme des pistes, pas comme une
+            vérité absolue. Comparez votre CV au CV type, en grand juste en dessous.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-8 md:grid-cols-2">
+          {!review ? (
+            <p className="text-sm text-muted-foreground md:col-span-2">
+              L&apos;avis n&apos;a pas pu être généré cette fois-ci. Relancez l&apos;analyse pour l&apos;obtenir.
+            </p>
+          ) : (
+            <>
               <div className="space-y-3">
                 <p className="text-sm font-semibold">Points forts</p>
-                <ul className="space-y-2.5">
-                  {strengths.map((point, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed">
-                      <CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
+                {strengths.length ? (
+                  <ul className="space-y-2.5">
+                    {strengths.map((point, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed">
+                        <CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-600" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
               </div>
-            )}
-            {improvements.length > 0 && (
               <div className="space-y-3">
                 <p className="text-sm font-semibold">À améliorer</p>
-                <ul className="space-y-2.5">
-                  {improvements.map((point, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed">
-                      <TriangleAlert className="mt-1 size-4 shrink-0 text-ecm-orange" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
+                {improvements.length ? (
+                  <ul className="space-y-2.5">
+                    {improvements.map((point, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-[15px] leading-relaxed">
+                        <TriangleAlert className="mt-1 size-4 shrink-0 text-ecm-orange" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Rien de majeur à signaler.</p>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-soft">
+        <CardHeader>
+          <CardTitle>Votre CV face au CV type ECM</CardTitle>
+          <CardDescription>
+            Mis côte à côte pour repérer d&apos;un coup d&apos;œil ce qui diffère. Cliquez sur un CV pour l&apos;agrandir.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Votre CV</p>
+            {result.previewDataUrl ? (
+              <ZoomableCv src={result.previewDataUrl} alt="Aperçu de votre CV" title="Votre CV" />
+            ) : (
+              <div className="flex aspect-[1191/1685] items-center justify-center rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">
+                Aperçu indisponible
               </div>
             )}
-            {strengths.length === 0 && improvements.length === 0 && (
-              <p className="text-sm text-muted-foreground">Aucun avis n&apos;a pu être formulé sur ce CV.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-soft">
-          <CardHeader>
-            <CardTitle className="text-base">Votre CV face au CV type ECM</CardTitle>
-            <CardDescription>Cliquez sur un CV pour l&apos;agrandir.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Votre CV</p>
-              {result.previewDataUrl ? (
-                <ZoomableImage src={result.previewDataUrl} alt="Aperçu de votre CV" title="Votre CV" />
-              ) : (
-                <div className="flex aspect-[1191/1685] items-center justify-center rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-                  Aperçu indisponible
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">CV type ECM</p>
-              <ZoomableImage
-                src="/reference-cv-alternance.png"
-                alt="CV type ECM pour une recherche d'alternance"
-                title="CV type ECM"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">CV type ECM</p>
+            <ZoomableCv src="/reference-cv-alternance.png" alt="CV type ECM pour une recherche d'alternance" title="CV type ECM" />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-soft">
         <CardHeader>
@@ -382,78 +394,13 @@ function CvResult({ result, onReset, onPrepare }: { result: Result; onReset: () 
             manque ou n&apos;est mal compris.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-5">
-            <Info label="Titre / accroche" value={x.headline} />
-            <Info label="Présentation" value={x.bio} />
-            <Info label="Mobilité géographique" value={x.geographic_mobility} />
-            <Info label="Type de recherche" value={x.availability_types?.join(", ")} />
-            <Info
-              label="Permis B"
-              value={x.has_driving_license === undefined ? null : x.has_driving_license ? "Oui" : "Non"}
-            />
-            {(x.softwares?.length ?? 0) > 0 && (
-              <Section title="Logiciels">
-                <div className="flex flex-wrap gap-1.5">
-                  {x.softwares!.map((s) => (
-                    <Badge key={s} variant="secondary">
-                      {s}
-                    </Badge>
-                  ))}
-                </div>
-              </Section>
-            )}
-            {skills.length > 0 && (
-              <Section title="Compétences">
-                <div className="flex flex-wrap gap-1.5">
-                  {skills.map((s, i) => (
-                    <Badge key={`${s.name}-${i}`} variant="secondary" className="whitespace-normal">
-                      {s.name} · {SKILL_CATEGORY_LABELS[s.category] ?? s.category}, {SKILL_LEVEL_LABELS[s.level] ?? s.level}
-                    </Badge>
-                  ))}
-                </div>
-              </Section>
-            )}
-          </div>
-          <div className="space-y-5">
-            {experiences.length > 0 && (
-              <Section title="Expériences">
-                <ul className="space-y-3">
-                  {experiences.map((e, i) => (
-                    <li key={i} className="rounded-lg border border-border p-3 text-sm">
-                      <p className="font-medium">
-                        {e.title} — {e.organization}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {[
-                          EXPERIENCE_TYPE_LABELS[e.experience_type] ?? e.experience_type,
-                          [formatMonth(e.start_date), formatMonth(e.end_date) ?? "aujourd'hui"].filter(Boolean).join(" → "),
-                        ].join(" · ")}
-                      </p>
-                      {e.description && <p className="mt-1.5 text-muted-foreground">{e.description}</p>}
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-            {certifications.length > 0 && (
-              <Section title="Formations et certifications">
-                <ul className="space-y-2">
-                  {certifications.map((c, i) => (
-                    <li key={i} className="text-sm">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        — {c.issuer}
-                        {c.issue_date ? ` (${new Date(`${c.issue_date}T12:00:00`).getFullYear()})` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-          </div>
-        </CardContent>
+        {x ? <CvContent x={x} /> : (
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Les informations du CV n&apos;ont pas pu être lues cette fois-ci. Relancez l&apos;analyse pour les obtenir.
+            </p>
+          </CardContent>
+        )}
       </Card>
 
       <Card className="border-primary/30 bg-primary/[0.04] shadow-soft">
@@ -470,6 +417,86 @@ function CvResult({ result, onReset, onPrepare }: { result: Result; onReset: () 
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function CvContent({ x }: { x: CvExtraction }) {
+  const skills = x.skills ?? [];
+  const experiences = x.experiences ?? [];
+  const certifications = x.certifications ?? [];
+  return (
+    <CardContent className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-5">
+        <Info label="Titre / accroche" value={x.headline} />
+        <Info label="Présentation" value={x.bio} />
+        <Info label="Mobilité géographique" value={x.geographic_mobility} />
+        <Info label="Type de recherche" value={x.availability_types?.join(", ")} />
+        <Info
+          label="Permis B"
+          value={x.has_driving_license === undefined ? null : x.has_driving_license ? "Oui" : "Non"}
+        />
+        {(x.softwares?.length ?? 0) > 0 && (
+          <Section title="Logiciels">
+            <div className="flex flex-wrap gap-1.5">
+              {x.softwares!.map((s) => (
+                <Badge key={s} variant="secondary">
+                  {s}
+                </Badge>
+              ))}
+            </div>
+          </Section>
+        )}
+        {skills.length > 0 && (
+          <Section title="Compétences">
+            <div className="flex flex-wrap gap-1.5">
+              {skills.map((s, i) => (
+                <Badge key={`${s.name}-${i}`} variant="secondary" className="whitespace-normal">
+                  {s.name} · {SKILL_CATEGORY_LABELS[s.category] ?? s.category}, {SKILL_LEVEL_LABELS[s.level] ?? s.level}
+                </Badge>
+              ))}
+            </div>
+          </Section>
+        )}
+      </div>
+      <div className="space-y-5">
+        {experiences.length > 0 && (
+          <Section title="Expériences">
+            <ul className="space-y-3">
+              {experiences.map((e, i) => (
+                <li key={i} className="rounded-lg border border-border p-3 text-sm">
+                  <p className="font-medium">
+                    {e.title} — {e.organization}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {[
+                      EXPERIENCE_TYPE_LABELS[e.experience_type] ?? e.experience_type,
+                      [formatMonth(e.start_date), formatMonth(e.end_date) ?? "aujourd'hui"].filter(Boolean).join(" → "),
+                    ].join(" · ")}
+                  </p>
+                  {e.description && <p className="mt-1.5 text-muted-foreground">{e.description}</p>}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+        {certifications.length > 0 && (
+          <Section title="Formations et certifications">
+            <ul className="space-y-2">
+              {certifications.map((c, i) => (
+                <li key={i} className="text-sm">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — {c.issuer}
+                    {c.issue_date ? ` (${new Date(`${c.issue_date}T12:00:00`).getFullYear()})` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+      </div>
+    </CardContent>
   );
 }
 
@@ -495,19 +522,26 @@ function Info({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function ZoomableImage({ src, alt, title }: { src: string; alt: string; title: string }) {
+// CV affiché en grand, en entier (sans recadrage) ; un clic l'ouvre en plein écran.
+function ZoomableCv({ src, alt, title }: { src: string; alt: string; title: string }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button type="button" className="block aspect-[1191/1685] w-full overflow-hidden rounded-lg border border-border bg-white">
-          <Image src={src} alt={alt} width={1191} height={1685} unoptimized className="h-full w-full object-cover object-top" />
+        <button
+          type="button"
+          className="block w-full cursor-zoom-in overflow-hidden rounded-lg border border-border bg-white"
+          aria-label={`Agrandir : ${title}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- image générée (data URL) ou statique, affichée telle quelle */}
+          <img src={src} alt={alt} className="block h-auto w-full" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <Image src={src} alt={alt} width={1191} height={1685} unoptimized className="w-full rounded-lg border border-border" />
+        {/* eslint-disable-next-line @next/next/no-img-element -- idem */}
+        <img src={src} alt={alt} className="block h-auto w-full rounded-lg border border-border" />
       </DialogContent>
     </Dialog>
   );

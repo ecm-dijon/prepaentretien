@@ -1,6 +1,6 @@
 "use server";
 
-import { extractCvData, type CvExtraction } from "@/lib/ai/cv-analysis";
+import { extractCvData, reviewCv, type CvExtraction, type CvReview } from "@/lib/ai/cv-analysis";
 import { renderPdfFirstPageToPng } from "@/lib/pdf-preview";
 import { incrementStats } from "@/lib/stats";
 
@@ -14,7 +14,12 @@ import { incrementStats } from "@/lib/stats";
 const MAX_CV_BYTES = 4 * 1024 * 1024;
 
 export type AnalyzeCvResult =
-  | { success: true; extraction: CvExtraction; previewDataUrl: string | null }
+  | {
+      success: true;
+      extraction: CvExtraction | null;
+      review: CvReview | null;
+      previewDataUrl: string | null;
+    }
   | { success: false; error: string };
 
 export async function analyzeCvAction(formData: FormData): Promise<AnalyzeCvResult> {
@@ -35,34 +40,45 @@ export async function analyzeCvAction(formData: FormData): Promise<AnalyzeCvResu
     return { success: false, error: "Ce fichier n'est pas un PDF. Exportez votre CV au format PDF." };
   }
 
-  let extraction: CvExtraction | null;
-  try {
-    extraction = await extractCvData(bytes.toString("base64"), {
-      registeredDegree: degree || null,
-      registeredYear: year || null,
-    });
-  } catch (err) {
-    console.error("[cv-analysis] échec de l'analyse :", err instanceof Error ? err.message : err);
-    return { success: false, error: "L'analyse du CV a échoué. Réessayez dans quelques instants." };
-  }
+  const startedAt = Date.now();
+  const pdfBase64 = bytes.toString("base64");
 
-  if (!extraction) {
-    return {
-      success: false,
-      error: "Le CV n'a pas pu être analysé (format non reconnu ou document illisible).",
-    };
-  }
-
-  // Aperçu de la 1re page pour la comparaison avec le CV type (best-effort).
-  let previewDataUrl: string | null = null;
+  // Image de la 1re page, pour l'afficher à côté du CV type (best-effort).
+  let pngBase64: string | null = null;
   try {
-    const png = await renderPdfFirstPageToPng(bytes, 2);
-    previewDataUrl = `data:image/png;base64,${png.toString("base64")}`;
+    pngBase64 = (await renderPdfFirstPageToPng(bytes, 2)).toString("base64");
   } catch (err) {
     console.error("[cv-analysis] aperçu indisponible :", err instanceof Error ? err.message : err);
   }
 
+  // Les deux analyses tournent en parallèle (attente divisée par deux) ; si
+  // l'une échoue, l'autre est quand même affichée.
+  const [extractionResult, reviewResult] = await Promise.allSettled([
+    extractCvData(pdfBase64, startedAt),
+    reviewCv(
+      pdfBase64,
+      { registeredDegree: degree || null, registeredYear: year || null },
+      startedAt
+    ),
+  ]);
+  for (const r of [extractionResult, reviewResult]) {
+    if (r.status === "rejected") {
+      console.error("[cv-analysis] échec :", r.reason instanceof Error ? r.reason.message : r.reason);
+    }
+  }
+  const extraction = extractionResult.status === "fulfilled" ? extractionResult.value : null;
+  const review = reviewResult.status === "fulfilled" ? reviewResult.value : null;
+
+  if (!extraction && !review) {
+    return {
+      success: false,
+      error: "L'analyse du CV n'a pas abouti. Réessayez dans quelques instants.",
+    };
+  }
+
+  const previewDataUrl = pngBase64 ? `data:image/png;base64,${pngBase64}` : null;
+
   await incrementStats({ cv: 1 });
 
-  return { success: true, extraction, previewDataUrl };
+  return { success: true, extraction, review, previewDataUrl };
 }
