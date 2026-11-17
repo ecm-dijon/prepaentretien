@@ -17,6 +17,7 @@ export const STAT_FIELDS = [
   "completed_answers", // total des réponses des simulations terminées
   "duration_sec", // durée cumulée des simulations terminées (secondes)
   "pdf", // comptes rendus PDF téléchargés
+  "cv", // CV analysés (analyseur de CV)
 ] as const;
 
 export type StatField = (typeof STAT_FIELDS)[number];

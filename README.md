@@ -6,6 +6,20 @@ fonctionnalité **« Prépa entretien »** de la
 (`/dashboard/entretien`), extraite en application autonome : **mêmes prompts, même déroulé, même
 interface, même compte rendu** — mais **sans compte, sans base de données, sans aucun stockage**.
 
+## Deux outils, une page d'accueil
+
+En arrivant sur le site, l'étudiant·e choisit entre deux grands boutons :
+
+- **Préparer un entretien** : la simulation d'entretien décrite ci-dessous.
+- **Analyser mon CV** : l'analyseur de CV de la Plateforme des Compétences (même analyse : CV
+  type ECM comme référence). L'étudiant·e dépose son CV en PDF (4 Mo max), indique s'il le
+  souhaite son diplôme (pour vérifier que le CV y correspond), et obtient : un avis (points forts /
+  à améliorer, avec la vraie raison pratique de chaque point), son CV à côté du CV type ECM, et ce
+  que l'IA a lu dans le CV (accroche, expériences, formations, compétences, logiciels...). Un bouton
+  « Préparer un entretien avec ce CV » pré-remplit le formulaire de la simulation.
+
+Les deux outils restent en mémoire dans la même page : revenir à l'accueil ne perd rien.
+
 ## Zéro stockage
 
 - Pas de connexion, pas de base : la session (profil saisi + messages) vit **uniquement dans la
@@ -14,6 +28,8 @@ interface, même compte rendu** — mais **sans compte, sans base de données, s
   l'API Claude et ne garde rien — les logs serveur ne contiennent jamais le contenu des échanges.
 - Pas de `localStorage` ni de cookies applicatifs.
 - Le **compte rendu PDF est généré dans le navigateur** : il ne repasse par aucun serveur.
+- Le **CV** est envoyé au serveur uniquement le temps de l'analyse (IA + aperçu de la 1re page),
+  puis oublié : aucun fichier enregistré, aucun contenu dans les logs.
 - Seules des **statistiques d'usage anonymes** sont comptées (voir plus bas) : des compteurs
   agrégés par jour, sans contenu, sans identifiant, sans adresse IP ni cookie.
 
@@ -52,6 +68,9 @@ API Claude (`@anthropic-ai/sdk`) · `@react-pdf/renderer` (PDF côté navigateur
 | `src/lib/ai/interview-prep-checklist.ts` | Rappels « avant le jour J » |
 | `src/lib/actions/interview-prep.ts` | Server Actions sans état (réponse du coach, compte rendu) |
 | `src/components/interview-prep/` | Formulaire de départ, chat, compte rendu, PDF |
+| `src/components/app/` | Page d'accueil à deux boutons, navigation entre les outils |
+| `src/lib/ai/cv-analysis.ts` | Analyse du CV (reprise de la plateforme) + CV type ECM (`assets/`) |
+| `src/components/cv/cv-analyzer.tsx` | Interface de l'analyseur de CV |
 
 ## Installation
 

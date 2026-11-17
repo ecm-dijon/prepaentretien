@@ -27,7 +27,7 @@ function sum(days: DayStats[]): Totals {
       for (const key of Object.keys(acc) as (keyof Totals)[]) acc[key] += d[key];
       return acc;
     },
-    { started: 0, profile_filled: 0, engaged: 0, answers: 0, completed: 0, completed_answers: 0, duration_sec: 0, pdf: 0 }
+    { started: 0, profile_filled: 0, engaged: 0, answers: 0, completed: 0, completed_answers: 0, duration_sec: 0, pdf: 0, cv: 0 }
   );
 }
 
@@ -120,6 +120,11 @@ export default async function StatsPage() {
       label: "Total des réponses envoyées",
       help: "Tous les messages envoyés au coach, simulations terminées ou non.",
       value: (t) => fr(t.answers),
+    },
+    {
+      label: "CV analysés",
+      help: "Nombre de CV envoyés à l'analyseur de CV (aucun CV n'est conservé).",
+      value: (t) => fr(t.cv),
     },
     {
       label: "Comptes rendus PDF téléchargés",
@@ -275,6 +280,7 @@ export default async function StatsPage() {
                       <th className="py-2 text-right font-medium">Terminées</th>
                       <th className="py-2 text-right font-medium">Réponses envoyées</th>
                       <th className="py-2 text-right font-medium">PDF téléchargés</th>
+                      <th className="py-2 text-right font-medium">CV analysés</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border tabular-nums">
@@ -282,13 +288,14 @@ export default async function StatsPage() {
                       .slice(-30)
                       .reverse()
                       .map((d) => (
-                        <tr key={d.date} className={d.started ? "" : "text-muted-foreground"}>
+                        <tr key={d.date} className={d.started || d.cv ? "" : "text-muted-foreground"}>
                           <td className="py-2 first-letter:uppercase">{formatDay(d.date)}</td>
                           <td className="py-2 text-right">{d.started}</td>
                           <td className="py-2 text-right">{d.engaged}</td>
                           <td className="py-2 text-right">{d.completed}</td>
                           <td className="py-2 text-right">{d.answers}</td>
                           <td className="py-2 text-right">{d.pdf}</td>
+                          <td className="py-2 text-right">{d.cv}</td>
                         </tr>
                       ))}
                   </tbody>

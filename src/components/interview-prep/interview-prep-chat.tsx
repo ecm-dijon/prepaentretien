@@ -14,6 +14,7 @@ import { AppHeader } from "./app-header";
 import type { Message } from "./types";
 import { UsageNotice } from "./usage-notice";
 import { useDictation } from "./use-dictation";
+import { useNavigation } from "@/components/app/navigation";
 import { unlockSpeech, useSpeech } from "./use-speech";
 
 const MAX_INPUT_HEIGHT = 220;
@@ -60,6 +61,18 @@ export function InterviewPrepChat({
     setText: setInput,
     onError: useCallback((message: string) => toast.error(message), []),
   });
+
+  // Retour à l'accueil (la simulation reste en mémoire) : on coupe la voix
+  // du recruteur et la dictée, qui sinon continueraient en arrière-plan.
+  const nav = useNavigation();
+  const navMode = nav?.mode;
+  useEffect(() => {
+    if (navMode && navMode !== "entretien") {
+      speech.stop();
+      dictation.cancel();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navMode]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

@@ -15,7 +15,8 @@ import {
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
 import { openingMessage } from "@/lib/opening-message";
 
-import { AppHeader } from "./app-header";
+import { PageShell } from "@/components/app/page-shell";
+
 import { InterviewPrepChat } from "./interview-prep-chat";
 import { SetupForm } from "./setup-form";
 import { preloadPdfModules, SummaryView } from "./summary-view";
@@ -58,7 +59,11 @@ function toContext(form: StudentForm): StudentContext {
 
 // Toute la session vit uniquement dans cet état React : aucun compte, aucune
 // base, aucun stockage navigateur. Quitter ou recharger la page efface tout.
-export function InterviewPrepApp() {
+// Informations venant de l'analyseur de CV (« Préparer un entretien avec ce
+// CV ») : appliquées au formulaire de départ, en mémoire uniquement.
+export type InterviewPrefill = { id: number; form: Partial<StudentForm> };
+
+export function InterviewPrepApp({ prefill }: { prefill?: InterviewPrefill | null }) {
   const [phase, setPhase] = useState<Phase>("setup");
   const [student, setStudent] = useState<StudentForm>(EMPTY_STUDENT);
   const [context, setContext] = useState<StudentContext>(toContext(EMPTY_STUDENT));
@@ -73,6 +78,24 @@ export function InterviewPrepApp() {
   // anonymes : nouveau à chaque simulation, jamais stocké dans le navigateur.
   const [sessionId, setSessionId] = useState("");
   const completedRecordedRef = useRef(false);
+
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => {
+    if (!prefill) return;
+    if (phaseRef.current !== "setup") {
+      toast("Une simulation est en cours : les informations du CV serviront pour la prochaine.");
+      return;
+    }
+    setStudent((prev) => {
+      const next = { ...prev };
+      for (const [key, value] of Object.entries(prefill.form) as [keyof StudentForm, string][]) {
+        if (value) next[key] = value;
+      }
+      return next;
+    });
+    toast.success("Les informations de votre CV ont été reprises dans le formulaire.");
+  }, [prefill]);
 
   const hasUnsavedWork =
     (phase === "chat" && messages.some((m) => m.role === "user")) || (phase === "summary" && !downloaded);
@@ -187,22 +210,5 @@ export function InterviewPrepApp() {
       ending={summarizing}
       onEnd={summarize}
     />
-  );
-}
-
-// Étapes « départ » et « compte rendu » : page qui défile normalement, même
-// barre du haut que le chat, contenu dans une colonne centrée.
-function PageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-svh flex-col">
-      <AppHeader />
-      <main className="relative flex-1 px-3 py-6 sm:px-6 sm:py-10">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(ellipse_at_top,var(--brand-50),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top,var(--brand-800),transparent_65%)] dark:opacity-30"
-          aria-hidden
-        />
-        <div className="mx-auto w-full max-w-3xl">{children}</div>
-      </main>
-    </div>
   );
 }
