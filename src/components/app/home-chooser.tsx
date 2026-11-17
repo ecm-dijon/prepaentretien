@@ -47,7 +47,15 @@ export function HomeChooser() {
 
           <p className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-            Aucun compte, rien n&apos;est conservé.
+            Aucun compte, rien n&apos;est conservé.{" "}
+            <a
+              href="/confidentialite"
+              target="_blank"
+              rel="noopener"
+              className="font-medium text-primary underline underline-offset-4"
+            >
+              Confidentialité
+            </a>
           </p>
         </div>
       </main>

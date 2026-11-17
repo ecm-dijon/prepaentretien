@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { analyzeCvAction } from "@/lib/actions/cv-analysis";
 import type { CvExtraction, CvReview } from "@/lib/ai/cv-analysis";
 import { DEGREE_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/lib/degree-options";
-import { NoStorageWarning } from "@/components/shared/no-storage-warning";
+import { NoStorageWarning, PrivacyLink } from "@/components/shared/no-storage-warning";
 import { cn } from "@/lib/utils";
 import { TimeoutError, withTimeout } from "@/lib/with-timeout";
 
@@ -511,7 +511,7 @@ function CvNoStorageWarning() {
       <p>
         Votre CV est analysé puis immédiatement oublié. Si vous fermez la page, la rechargez ou revenez en
         arrière jusqu&apos;à quitter le site, l&apos;analyse est définitivement supprimée. Notez les conseils
-        qui vous sont utiles.
+        qui vous sont utiles. <PrivacyLink />
       </p>
     </NoStorageWarning>
   );

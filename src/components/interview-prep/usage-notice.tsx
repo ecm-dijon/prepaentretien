@@ -3,7 +3,7 @@
 import { Mic } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { NoStorageWarning } from "@/components/shared/no-storage-warning";
+import { NoStorageWarning, PrivacyLink } from "@/components/shared/no-storage-warning";
 import { cn } from "@/lib/utils";
 
 function useDictationSupported() {
@@ -36,7 +36,7 @@ export function UsageNotice({ compact = false }: { compact?: boolean }) {
               Si vous fermez la page, la rechargez ou revenez en arrière jusqu&apos;à quitter le site, la
               simulation est définitivement supprimée. À la fin, cliquez sur{" "}
               <strong>« Terminer la session »</strong> pour accéder à votre compte rendu, puis{" "}
-              <strong>téléchargez le PDF</strong> : sinon, il sera perdu.
+              <strong>téléchargez le PDF</strong> : sinon, il sera perdu. <PrivacyLink />
             </p>
           </>
         )}

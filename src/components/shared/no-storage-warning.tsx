@@ -4,6 +4,16 @@ import { cn } from "@/lib/utils";
 
 // Encadré rouge affiché en haut des deux outils : rien n'est enregistré,
 // une fausse manipulation (fermer, recharger, quitter le site) efface tout.
+// Lien vers la page Confidentialité, ouvert dans un nouvel onglet pour ne
+// pas perdre la simulation ou l'analyse en cours.
+export function PrivacyLink() {
+  return (
+    <a href="/confidentialite" target="_blank" rel="noopener" className="font-semibold underline underline-offset-2">
+      En savoir plus
+    </a>
+  );
+}
+
 export function NoStorageWarning({ children, compact = false }: { children: React.ReactNode; compact?: boolean }) {
   return (
     <div
