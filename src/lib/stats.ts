@@ -17,7 +17,13 @@ export const STAT_FIELDS = [
   "completed_answers", // total des réponses des simulations terminées
   "duration_sec", // durée cumulée des simulations terminées (secondes)
   "pdf", // comptes rendus PDF téléchargés
-  "cv", // CV analysés (analyseur de CV)
+  "cv", // CV analysés avec un résultat (complet ou partiel)
+  "cv_failed", // analyses de CV sans aucun résultat (IA en échec ou trop lente)
+  "cv_partial", // analyses où l'avis OU la lecture des informations a manqué
+  "cv_degree", // analyses où l'étudiant·e a indiqué son diplôme
+  "cv_mismatch", // analyses où un écart CV / diplôme a été signalé
+  "cv_duration_sec", // temps d'analyse cumulé des analyses avec résultat (secondes)
+  "cv_to_interview", // analyses suivies d'un clic « Préparer un entretien avec ce CV »
 ] as const;
 
 export type StatField = (typeof STAT_FIELDS)[number];
@@ -195,4 +201,116 @@ export async function getRecentSessions(limit: number): Promise<SessionRecord[]>
     });
   });
   return sessions;
+}
+
+// ---------------------------------------------------------------------------
+// Analyses de CV individuelles ANONYMES : une ligne par analyse, repérée par
+// un identifiant aléatoire. Uniquement des horodatages, durées et indicateurs
+// (jamais le CV, son contenu, un nom ou le diplôme lui-même). Conservées
+// 90 jours.
+// ---------------------------------------------------------------------------
+
+const CV_RUNS_INDEX = "prepa:cvruns";
+const cvRunKey = (id: string) => `prepa:cvrun:${id}`;
+
+export type CvRunStatus = "ok" | "partial" | "failed";
+
+export type CvRunRecord = {
+  id: string;
+  at: number;
+  durationMs: number;
+  status: CvRunStatus;
+  degreeGiven: boolean;
+  mismatch: boolean;
+  improvements: number;
+  toInterview: boolean;
+};
+
+export async function recordCvAnalysis(run: {
+  durationMs: number;
+  status: CvRunStatus;
+  degreeGiven: boolean;
+  mismatch: boolean;
+  improvements: number;
+}): Promise<string | null> {
+  const durationSec = Math.round(run.durationMs / 1000);
+  await incrementStats(
+    run.status === "failed"
+      ? { cv_failed: 1 }
+      : {
+          cv: 1,
+          cv_partial: run.status === "partial" ? 1 : 0,
+          cv_degree: run.degreeGiven ? 1 : 0,
+          cv_mismatch: run.mismatch ? 1 : 0,
+          cv_duration_sec: durationSec,
+        }
+  );
+
+  const client = getRedis();
+  if (!client) return null;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  try {
+    const p = client.pipeline();
+    const key = cvRunKey(id);
+    p.hset(key, {
+      at: now,
+      duration_ms: Math.round(run.durationMs),
+      status: run.status,
+      degree: run.degreeGiven ? 1 : 0,
+      mismatch: run.mismatch ? 1 : 0,
+      improvements: run.improvements,
+      to_interview: 0,
+    });
+    p.expire(key, SESSION_TTL_SEC);
+    p.zadd(CV_RUNS_INDEX, { score: now, member: id });
+    p.zremrangebyscore(CV_RUNS_INDEX, 0, now - SESSION_TTL_SEC * 1000);
+    await p.exec();
+    return id;
+  } catch (err) {
+    console.error("[stats] cv run failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// Clic sur « Préparer un entretien avec ce CV » : compté une seule fois par analyse.
+export async function recordCvToInterview(id: string) {
+  if (!isValidSessionId(id)) return;
+  await safely(async (client) => {
+    const key = cvRunKey(id);
+    if (!(await client.hexists(key, "at"))) return;
+    const first = await client.hsetnx(key, "to_interview_at", Date.now());
+    if (!first) return;
+    await client.hset(key, { to_interview: 1 });
+    await incrementStats({ cv_to_interview: 1 });
+  });
+}
+
+export async function getRecentCvAnalyses(limit: number): Promise<CvRunRecord[]> {
+  const client = getRedis();
+  if (!client) return [];
+  const ids = (await client.zrange(CV_RUNS_INDEX, 0, limit - 1, { rev: true })) as string[];
+  if (!ids.length) return [];
+  const p = client.pipeline();
+  for (const id of ids) p.hgetall(cvRunKey(id));
+  const rows = (await p.exec()) as (Record<string, unknown> | null)[];
+
+  const runs: CvRunRecord[] = [];
+  ids.forEach((id, i) => {
+    const row = rows[i];
+    const at = Number(row?.at);
+    if (!row || !at) return;
+    const status = String(row.status);
+    runs.push({
+      id,
+      at,
+      durationMs: Number(row.duration_ms) || 0,
+      status: status === "ok" || status === "partial" ? status : "failed",
+      degreeGiven: Number(row.degree) === 1,
+      mismatch: Number(row.mismatch) === 1,
+      improvements: Number(row.improvements) || 0,
+      toInterview: Number(row.to_interview) === 1,
+    });
+  });
+  return runs;
 }

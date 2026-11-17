@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { analyzeCvAction } from "@/lib/actions/cv-analysis";
+import { recordCvToInterviewAction } from "@/lib/actions/usage";
 import type { CvExtraction, CvReview } from "@/lib/ai/cv-analysis";
 import { DEGREE_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/lib/degree-options";
 import { NoStorageWarning, PrivacyLink } from "@/components/shared/no-storage-warning";
@@ -65,6 +66,7 @@ type Result = {
   review: CvReview | null;
   previewDataUrl: string | null;
   fileName: string;
+  analysisId: string | null;
 };
 
 // Analyseur de CV — même analyse que la Plateforme des Compétences (CV type
@@ -118,6 +120,7 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
           review: res.review,
           previewDataUrl: res.previewDataUrl,
           fileName: file.name,
+          analysisId: res.analysisId,
         });
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
@@ -143,6 +146,7 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
   function handlePrepare() {
     if (!result) return;
     const x = result.extraction ?? {};
+    if (result.analysisId) void recordCvToInterviewAction(result.analysisId).catch(() => {});
     onPrepareInterview({
       headline: x.headline ?? "",
       degree,

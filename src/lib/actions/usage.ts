@@ -3,6 +3,7 @@
 import {
   incrementStats,
   isValidSessionId,
+  recordCvToInterview,
   recordSessionCompleted,
   recordSessionPdf,
   recordSessionStart,
@@ -34,4 +35,8 @@ export async function recordSessionCompletedAction(sessionId: string, answers: n
 export async function recordPdfDownloadedAction(sessionId: string) {
   if (!isValidSessionId(sessionId)) return;
   await Promise.all([incrementStats({ pdf: 1 }), recordSessionPdf(sessionId)]);
+}
+
+export async function recordCvToInterviewAction(analysisId: string) {
+  await recordCvToInterview(analysisId);
 }

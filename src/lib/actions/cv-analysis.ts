@@ -2,7 +2,7 @@
 
 import { extractCvData, reviewCv, type CvExtraction, type CvReview } from "@/lib/ai/cv-analysis";
 import { renderPdfFirstPageToPng } from "@/lib/pdf-preview";
-import { incrementStats } from "@/lib/stats";
+import { recordCvAnalysis } from "@/lib/stats";
 
 // Analyseur de CV — même principe que la prépa entretien : AUCUN stockage.
 // Le PDF reçu est envoyé à l'IA, un aperçu de sa première page est rendu,
@@ -19,6 +19,8 @@ export type AnalyzeCvResult =
       extraction: CvExtraction | null;
       review: CvReview | null;
       previewDataUrl: string | null;
+      /** Identifiant anonyme de l'analyse (statistiques uniquement), ou null. */
+      analysisId: string | null;
     }
   | { success: false; error: string };
 
@@ -69,7 +71,10 @@ export async function analyzeCvAction(formData: FormData): Promise<AnalyzeCvResu
   const extraction = extractionResult.status === "fulfilled" ? extractionResult.value : null;
   const review = reviewResult.status === "fulfilled" ? reviewResult.value : null;
 
+  const durationMs = Date.now() - startedAt;
+
   if (!extraction && !review) {
+    await recordCvAnalysis({ durationMs, status: "failed", degreeGiven: Boolean(degree), mismatch: false, improvements: 0 });
     return {
       success: false,
       error: "L'analyse du CV n'a pas abouti. Réessayez dans quelques instants.",
@@ -78,7 +83,13 @@ export async function analyzeCvAction(formData: FormData): Promise<AnalyzeCvResu
 
   const previewDataUrl = pngBase64 ? `data:image/png;base64,${pngBase64}` : null;
 
-  await incrementStats({ cv: 1 });
+  const analysisId = await recordCvAnalysis({
+    durationMs,
+    status: extraction && review ? "ok" : "partial",
+    degreeGiven: Boolean(degree),
+    mismatch: Boolean(review?.profile_mismatch),
+    improvements: review?.improvements.length ?? 0,
+  });
 
-  return { success: true, extraction, review, previewDataUrl };
+  return { success: true, extraction, review, previewDataUrl, analysisId };
 }
