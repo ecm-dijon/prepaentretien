@@ -9,6 +9,7 @@ import { sendInterviewPrepMessageAction, type StudentContext } from "@/lib/actio
 import { PRE_INTERVIEW_CHECKLIST_MESSAGE } from "@/lib/ai/interview-prep-checklist";
 import { splitCoachMessage } from "@/lib/coach-message";
 import { cn } from "@/lib/utils";
+import { withTimeout } from "@/lib/with-timeout";
 
 import { AppHeader } from "./app-header";
 import type { Message } from "./types";
@@ -104,7 +105,13 @@ export function InterviewPrepChat({
     setInput("");
 
     startSending(async () => {
-      const result = await sendInterviewPrepMessageAction(previous, content, student, sessionId);
+      const result = await withTimeout(
+        sendInterviewPrepMessageAction(previous, content, student, sessionId),
+        75_000
+      ).catch(() => ({
+        success: false as const,
+        error: "Le coach met trop de temps à répondre. Réessayez d'envoyer votre réponse.",
+      }));
       if (result.success) {
         const startIndex = previous.length + 1;
         setMessages((prev) => [

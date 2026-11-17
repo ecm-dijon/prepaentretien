@@ -230,7 +230,7 @@ export async function getInterviewPrepReply(
       },
     ],
     messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
-  });
+  }, { timeout: 55_000, maxRetries: 1 });
 
   // Uniquement des compteurs de tokens (aucun contenu) : permet de vérifier
   // dans les logs Vercel que le cache fonctionne (cache_read > 0 dès le
@@ -298,9 +298,11 @@ export async function summarizeInterviewPrepSession(
     max_tokens: 4000,
     system:
       "Rédige TOUJOURS en français, sans aucune exception — jamais un mot dans une autre langue. Tu analyses la transcription d'une session de préparation à l'entretien entre le coach prépa entretien de l'ECM et un·e étudiant·e, et tu en extrais un compte rendu structuré. Base-toi uniquement sur ce qui a réellement été dit dans la transcription. Adresse-toi à l'étudiant·e en le/la VOUVOYANT (jamais de tutoiement). N'utilise aucune mise en forme Markdown.",
-    output_config: { format: zodOutputFormat(interviewPrepSummarySchema) },
+    // Effort « medium » : synthèse d'une transcription, sans besoin d'une
+    // réflexion longue ; garde la génération bien sous la limite de 60 s.
+    output_config: { format: zodOutputFormat(interviewPrepSummarySchema), effort: "medium" },
     messages: [{ role: "user", content: `Transcription de la session :\n\n${transcript}` }],
-  });
+  }, { timeout: 55_000, maxRetries: 1 });
 
   const parsed = message.parsed_output;
   if (!parsed) {

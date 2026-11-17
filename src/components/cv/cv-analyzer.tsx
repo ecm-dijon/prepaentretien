@@ -27,6 +27,7 @@ import { analyzeCvAction } from "@/lib/actions/cv-analysis";
 import type { CvExtraction } from "@/lib/ai/cv-analysis";
 import { DEGREE_OPTIONS, YEAR_LEVEL_OPTIONS } from "@/lib/degree-options";
 import { cn } from "@/lib/utils";
+import { TimeoutError, withTimeout } from "@/lib/with-timeout";
 
 import type { StudentForm } from "../interview-prep/types";
 
@@ -95,15 +96,19 @@ export function CvAnalyzer({ onPrepareInterview }: { onPrepareInterview: (form: 
       formData.append("cv", file);
       formData.append("degree", degree);
       formData.append("year", year);
-      const res = await analyzeCvAction(formData);
+      const res = await withTimeout(analyzeCvAction(formData), 75_000);
       if (res.success) {
         setResult({ extraction: res.extraction, previewDataUrl: res.previewDataUrl, fileName: file.name });
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         toast.error(res.error);
       }
-    } catch {
-      toast.error("L'analyse du CV a échoué. Réessayez dans quelques instants.");
+    } catch (err) {
+      toast.error(
+        err instanceof TimeoutError
+          ? "L'analyse prend trop de temps. Réessayez dans un instant."
+          : "L'analyse du CV a échoué. Réessayez dans quelques instants."
+      );
     } finally {
       setAnalyzing(false);
     }

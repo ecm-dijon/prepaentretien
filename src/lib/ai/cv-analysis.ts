@@ -221,6 +221,10 @@ export async function extractCvData(
     model: CLAUDE_MODEL,
     // La réflexion du modèle compte dans cette limite.
     max_tokens: 8000,
+    // Effort « low » : l'analyse est surtout de la lecture / extraction. Avec
+    // l'effort par défaut (« high »), le modèle réfléchissait longuement sur
+    // les deux PDF et dépassait la minute — l'analyse semblait ne jamais finir.
+    output_config: { effort: "low" },
     system:
       "IMPORTANT — Rédige TOUJOURS en français, sans aucune exception, tout le texte que tu génères toi-même (`bio`, `feedback.strengths`, `feedback.improvements`, `profile_mismatch`...) : jamais un mot ni une phrase dans une autre langue, quelle qu'elle soit. Seules les données recopiées telles quelles depuis le CV (noms propres, intitulés de poste ou de diplôme, noms d'entreprise) peuvent rester dans leur langue d'origine si le CV lui-même les contient ainsi. N'utilise jamais de mise en forme Markdown (pas d'astérisques **, de dièses #...) : texte brut uniquement, l'interface ne l'affiche pas en gras/italique.\n\n" +
       "Tu analyses le CV (PDF) d'un·e étudiant·e de l'ECM (école de commerce et management) et tu en extrais des données structurées via l'outil fourni.\n\n" +
@@ -267,8 +271,14 @@ export async function extractCvData(
   const startedAt = Date.now();
   // Une relance seulement s'il reste assez de temps (Vercel coupe à 60 s).
   for (let attempt = 0; attempt < 2 && toolInput === null; attempt++) {
-    if (attempt > 0 && Date.now() - startedAt > 25_000) break;
-    const message = await client.messages.create(request);
+    const elapsed = Date.now() - startedAt;
+    if (attempt > 0 && elapsed > 20_000) break;
+    // Délai strict, sans relance automatique du SDK (par défaut : 10 min et
+    // 2 relances) : mieux vaut une erreur claire qu'une attente sans fin.
+    const message = await client.messages.create(request, {
+      timeout: 52_000 - elapsed,
+      maxRetries: 0,
+    });
     const toolUse = message.content.find((block) => block.type === "tool_use");
     if (toolUse && toolUse.type === "tool_use") toolInput = toolUse.input;
     else console.error("[cv-analysis] l'outil n'a pas été appelé. stop_reason:", message.stop_reason);

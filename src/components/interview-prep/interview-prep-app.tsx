@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/usage";
 import type { InterviewPrepSummary } from "@/lib/ai/interview-prep";
 import { openingMessage } from "@/lib/opening-message";
+import { withTimeout } from "@/lib/with-timeout";
 
 import { PageShell } from "@/components/app/page-shell";
 
@@ -145,7 +146,9 @@ export function InterviewPrepApp({ prefill }: { prefill?: InterviewPrefill | nul
       void recordSessionCompletedAction(sessionId, answers, durationSec).catch(() => {});
     }
     startSummarizing(async () => {
-      const result = await summarizeInterviewPrepAction(messages);
+      const result = await withTimeout(summarizeInterviewPrepAction(messages), 75_000).catch(
+        () => ({ success: false as const, error: "Le compte rendu a pris trop de temps. Réessayez." })
+      );
       if (result.success) {
         setSummary(result.summary);
       } else {
